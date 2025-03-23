@@ -1,55 +1,56 @@
+// utils/supabase/middleware.ts
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { jwtDecode } from "jwt-decode";
 
 /**
- * Updates the Supabase auth session during a request-response cycle.
- *
- * This critical function is called by the middleware for every request and:
- * 1. Creates a Supabase server client with special cookie handling for the middleware
- * 2. Refreshes the auth token if it's expired (via getUser())
- * 3. Passes the refreshed tokens to both the server and client sides
- * 4. Handles route protection for authenticated routes
- *
- * The middleware is the perfect place to refresh tokens because:
- * - It runs on every request before reaching the application code
- * - It can both read cookies from the request and set cookies on the response
- * - It can redirect unauthenticated users trying to access protected routes
- *
- * @param request - The incoming Next.js request
- * @returns A response object with refreshed auth tokens in cookies
+ * Interface for JWT token payload with role-based access control
+ * - app_role: The user's role within the application (ADMIN, STAFF, MEMBER, USER)
+ * - Additional JWT claims can be accessed via index signature
+ */
+interface JwtPayload {
+  app_role?: string;
+  [key: string]: any;
+}
+
+/**
+ * Middleware that handles Supabase authentication and enforces role-based access control.
+ * This function:
+ * 1. Creates a Supabase client with cookie handling for auth persistence
+ * 2. Refreshes the user session
+ * 3. Implements role-based redirects for authenticated users
+ * 4. Protects routes based on user roles from JWT claims
+ * 5. Handles specific permission requirements for admin sections
  */
 export const updateSession = async (request: NextRequest) => {
-   // This `try/catch` block is only here for the interactive tutorial.
-   // Feel free to remove once you have Supabase connected.
    try {
-      // Create an unmodified response that we'll enhance with cookies
+      // Create a response that we'll enhance with cookies
       let response = NextResponse.next({
          request: {
             headers: request.headers,
          },
       });
 
-      // Create a Supabase client specifically configured for middleware
+      // Create a Supabase client specifically for middleware operations
+      // This enables auth cookie handling between client and server
       const supabase = createServerClient(
          process.env.NEXT_PUBLIC_SUPABASE_URL!,
          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
          {
             cookies: {
-               // Get cookies from the request
+               // Read all cookies from the incoming request
                getAll() {
                   return request.cookies.getAll();
                },
-               // Set cookies on both the request and response
+               // Set cookies on both the request (for middleware chain) and response (for browser)
                setAll(cookiesToSet) {
-                  // First, set cookies on the request object
+                  // First update request cookies for any downstream middleware
                   cookiesToSet.forEach(({ name, value }) =>
                      request.cookies.set(name, value)
                   );
-                  // Create a new response with the updated request
-                  response = NextResponse.next({
-                     request,
-                  });
-                  // Then set the same cookies on the response for the browser
+                  // Create a new response object with updated request
+                  response = NextResponse.next({ request });
+                  // Set cookies on the response to be sent back to the browser
                   cookiesToSet.forEach(({ name, value, options }) =>
                      response.cookies.set(name, value, options)
                   );
@@ -58,31 +59,107 @@ export const updateSession = async (request: NextRequest) => {
          }
       );
 
-      // This will refresh the session if expired - critically important for Server Components
-      // Always use getUser() for auth checks as it verifies with the Supabase Auth server
-      // https://supabase.com/docs/guides/auth/server-side/nextjs
-      const user = await supabase.auth.getUser();
-
-      // Protect routes that require authentication by redirecting to sign-in
-      if (
-         (request.nextUrl.pathname.startsWith("/protected") ||
-            request.nextUrl.pathname.startsWith("/dashboard")) &&
-         user.error
-      ) {
-         return NextResponse.redirect(new URL("/sign-in", request.url));
+      // Refresh the session and get the user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Get the pathname
+      const pathname = request.nextUrl.pathname;
+      
+      // Smart Homepage Routing: Redirect authenticated users from root page to their role-appropriate dashboard
+      if (pathname === "/" && user) {
+         const { data: { session } } = await supabase.auth.getSession();
+         
+         if (session?.access_token) {
+            try {
+               // Extract the user's role from JWT claims in the access token
+               const decoded = jwtDecode<JwtPayload>(session.access_token);
+               // Default to 'USER' role if no app_role claim exists
+               const userRole = decoded.app_role || 'USER';
+               
+               // Role-based routing for authenticated users:
+               // - ADMIN/STAFF -> Admin dashboard
+               // - MEMBER -> Member dashboard
+               // - All others -> General user dashboard
+               if (['ADMIN', 'STAFF'].includes(userRole)) {
+                  return NextResponse.redirect(new URL('/admin', request.url));
+               } else if (userRole === 'MEMBER') {
+                  return NextResponse.redirect(new URL('/member', request.url));
+               } else {
+                  return NextResponse.redirect(new URL('/dashboard', request.url));
+               }
+            } catch (error) {
+               console.error('Error decoding JWT in middleware:', error);
+               // Continue to default response if JWT decoding fails
+            }
+         }
+      }
+      
+      // Authentication Guard: Protect private routes from unauthenticated access
+      if (!user) {
+         // List of paths that require authentication
+         if (
+            pathname.startsWith('/admin') || // Admin routes 
+            pathname.startsWith('/member') || // Member routes
+            pathname === '/dashboard' || // User dashboard
+            pathname === '/purchases' // Purchase history
+         ) {
+            // Redirect unauthenticated users to sign-in page
+            // while preserving the original URL as the return path
+            return NextResponse.redirect(new URL('/sign-in', request.url));
+         }
+         
+         // For public routes, proceed normally for unauthenticated users
+         return response;
+      }
+      
+      // Role-Based Access Control (RBAC): Enforce permission boundaries for authenticated users
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+         try {
+            // Decode JWT access token to extract role information from custom claims
+            const decoded = jwtDecode<JwtPayload>(session.access_token);
+            // Default to basic 'USER' role if app_role claim is missing
+            const userRole = decoded.app_role || 'USER';
+            
+            // Admin section authorization
+            if (pathname.startsWith('/admin') && !['ADMIN', 'STAFF'].includes(userRole)) {
+               // Graceful redirection based on user's actual role
+               if (userRole === 'MEMBER') {
+                  return NextResponse.redirect(new URL('/member', request.url));
+               } else {
+                  return NextResponse.redirect(new URL('/dashboard', request.url));
+               }
+            }
+            
+            // Member section authorization
+            if (pathname.startsWith('/member') && !['ADMIN', 'STAFF', 'MEMBER'].includes(userRole)) {
+               // If user isn't a member or higher role, redirect to standard dashboard
+               return NextResponse.redirect(new URL('/dashboard', request.url));
+            }
+            
+            // Special case: Fine-grained permissions for specific admin sections
+            if (pathname.includes('/admin/apples') && userRole !== 'ADMIN') {
+               // Apples management requires ADMIN role (not just STAFF)
+               // This demonstrates granular RBAC within the admin section
+               return NextResponse.redirect(new URL('/admin', request.url));
+            }
+            
+         } catch (error) {
+            console.error('Error decoding JWT in middleware:', error);
+            // On JWT error, continue with standard response
+            // A more strict approach could redirect to an error page
+         }
       }
 
-      // Optional: redirect from home to protected area when user is logged in
-      // if (request.nextUrl.pathname === "/" && !user.error) {
-      //   return NextResponse.redirect(new URL("/protected", request.url));
-      // }
-
-      // Return the response with refreshed auth cookies
       return response;
    } catch (e) {
-      // If you are here, a Supabase client could not be created!
-      // This is likely because you have not set up environment variables.
-      // Check out http://localhost:3000 for Next Steps.
+      // Global error handler for middleware
+      console.error('Error in middleware:', e);
+      
+      // Fallback response that maintains the request headers
+      // This allows the application to continue working even if 
+      // the authentication/authorization layer encounters an error
       return NextResponse.next({
          request: {
             headers: request.headers,

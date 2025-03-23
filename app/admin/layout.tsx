@@ -1,4 +1,5 @@
-// app/(admin)/layout.tsx
+// app/admin/layout.tsx
+import { canAccessAdminArea } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -13,8 +14,13 @@ export default async function AdminLayout({
   if (!user) {
     return redirect("/sign-in");
   }
-
-  // For now, no RBAC check - we'll add this later
+  
+  // Check if user has admin permissions
+  const hasAccess = await canAccessAdminArea();
+  
+  if (!hasAccess) {
+    return redirect("/dashboard");
+  }
 
   return (
     <div className="flex-1 w-full flex flex-col gap-12 max-w-5xl">
