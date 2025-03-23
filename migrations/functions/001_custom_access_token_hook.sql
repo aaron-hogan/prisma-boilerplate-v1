@@ -9,9 +9,10 @@ as $$
     user_app_role text;
   begin
     -- Fetch the user role from your profiles table
+    -- Note: 'user_id' is the column name in Supabase Auth
     select app_role::text into user_app_role 
     from public.profiles 
-    where auth_user_id = (event->>'auth_user_id')::uuid;
+    where auth_user_id = (event->>'user_id')::uuid;
     
     claims := event->'claims';
     if user_app_role is not null then
