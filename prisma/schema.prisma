@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enum for user app roles
+enum AppRole {
+  ADMIN
+  STAFF
+  MEMBER
+  USER
+}
+
+// Enum for product types
+enum ProductType {
+  APPLE
+  ORANGE
+}
+
+// User profile connected to Supabase auth.users
+model Profile {
+  id         String   @id @default(uuid())
+  authUserId String   @unique @map("auth_user_id") // Changed from user_id to avoid ambiguous field names
+  appRole    AppRole  @default(USER) @map("app_role")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  products   Product[]
+  membership Membership?
+  purchases  Purchase[]
+
+  @@map("profiles")
+}
+
+model Product {
+  id        String      @id @default(uuid())
+  name      String
+  type      ProductType // APPLE or ORANGE
+  price     Decimal     @db.Decimal(10, 2)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Who created this product (important for permissions)
+  creator   Profile @relation(fields: [createdBy], references: [id])
+  createdBy String  @map("created_by")
+
+  // Relations
+  purchases Purchase[]
+
+  @@map("products")
+}
+
+model Membership {
+  id        String    @id @default(uuid())
+  startDate DateTime  @default(now()) @map("start_date")
+  endDate   DateTime? @map("end_date")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String  @unique @map("profile_id")
+
+  @@map("memberships")
+}
+
+model Purchase {
+  id        String   @id @default(uuid())
+  quantity  Int      @default(1)
+  total     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  profile   Profile @relation(fields: [profileId], references: [id])
+  profileId String  @map("profile_id")
+  product   Product @relation(fields: [productId], references: [id])
+  productId String  @map("product_id")
+
+  @@map("purchases")
+}

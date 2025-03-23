@@ -96,8 +96,8 @@ export const signInAction = async (formData: FormData) => {
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  // If successful, redirect to the protected area
-  return redirect("/protected");
+  // If successful, redirect to the protected area dashboard
+  return redirect("/dashboard");
 };
 
 /**
