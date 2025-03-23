@@ -4,6 +4,7 @@ import { encodedRedirect } from "@/utils/utils";
 import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { ensureUserProfile } from "@/utils/profile";
 
 /**
  * Server Action: Sign Up
@@ -80,23 +81,38 @@ export const signUpAction = async (formData: FormData) => {
  * @param formData - Form data from the sign-in form
  * @returns A redirect response to either protected area or sign-in with error
  */
+// app/actions.ts
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const supabase = await createClient();
 
+  console.log(`Attempting sign in for ${email}`);
+
   // Attempt to sign in with email/password
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   // If there's an error, redirect back to sign-in with the error message
   if (error) {
+    console.error("Sign in error:", error.message);
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  // If successful, redirect to the protected area dashboard
+  console.log("Sign in successful, ensuring profile");
+  
+  // Ensure profile exists for this user
+  if (data?.user) {
+    try {
+      await ensureUserProfile(data.user);
+    } catch (profileError) {
+      console.error("Error ensuring user profile during sign in:", profileError);
+    }
+  }
+
+  // If successful, redirect to the protected area
   return redirect("/dashboard");
 };
 
