@@ -2,17 +2,40 @@ import { createClient } from "@/utils/supabase/server";
 import { InfoIcon } from "lucide-react";
 import { redirect } from "next/navigation";
 
+/**
+ * Protected Page Component
+ * 
+ * This Server Component:
+ * 1. Creates a server-side Supabase client
+ * 2. Securely verifies if the user is authenticated using getUser()
+ * 3. Redirects unauthenticated users to the sign-in page
+ * 4. For authenticated users, displays their user details
+ * 
+ * Key security points:
+ * - Server Components provide true server-side authentication checks
+ * - getUser() makes an Auth API call to validate the session token
+ * - This is more secure than checking cookie values directly
+ * - Protected routes can be secured via both the middleware and page components
+ * 
+ * @returns A React component showing protected content or a redirect
+ */
 export default async function ProtectedPage() {
+  // Create a server-side Supabase client
   const supabase = await createClient();
 
+  // Get the current user - this validates the session with Supabase Auth
+  // IMPORTANT: For security reasons, always use getUser() not getSession()
+  // in server components to check authentication
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // If user is not authenticated, redirect to sign-in page
   if (!user) {
     return redirect("/sign-in");
   }
 
+  // Display protected content to authenticated users
   return (
     <div className="flex-1 w-full flex flex-col gap-12">
       <div className="w-full">
