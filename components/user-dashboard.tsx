@@ -12,6 +12,7 @@ import { createClient } from "@/utils/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import ProductManagement from "@/components/product-management";
 
 interface UserData {
   user: {
@@ -54,7 +55,8 @@ export default function UserDashboard({
   activeTab = "profile",
 }: UserDashboardProps) {
   const router = useRouter();
-  const [tab, setTab] = useState<"profile" | "purchases" | "member">(
+  const [tab, setTab] = useState<"profile" | "purchases" | "member" | "admin">(
+    activeTab === "admin" ? "admin" :
     activeTab === "member" ? "member" : 
     activeTab === "purchases" ? "purchases" : "profile"
   );
@@ -64,6 +66,7 @@ export default function UserDashboard({
 
   // Check role from profile data
   const isMember = ["MEMBER", "STAFF", "ADMIN"].includes(userData.profile.appRole);
+  const isAdmin = ["ADMIN", "STAFF"].includes(userData.profile.appRole);
 
   // Fetch fresh user data once on mount
   useEffect(() => {
@@ -203,6 +206,18 @@ export default function UserDashboard({
               }`}
             >
               Member Area
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setTab("admin")}
+              className={`py-2 px-4 border-b-2 ${
+                tab === "admin"
+                  ? "border-primary font-semibold text-primary"
+                  : "border-transparent"
+              }`}
+            >
+              Admin Area
             </button>
           )}
         </div>
@@ -379,6 +394,45 @@ export default function UserDashboard({
               <p className="text-center text-xl mt-4">
                 Thanks for being a member! 🐱
               </p>
+            </div>
+          </div>
+        )}
+        
+        {/* Admin Tab */}
+        {tab === "admin" && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Admin Dashboard</h2>
+              <Badge className="bg-blue-500">
+                {userData.profile.appRole}
+              </Badge>
+            </div>
+            
+            <p className="mb-4 text-sm text-muted-foreground">
+              Manage products from a single dashboard. Each tab shows a different product type.
+            </p>
+            
+            {/* Product Management Tabs */}
+            <div className="border p-4 rounded-md">
+              <div className="mb-4 flex flex-col space-y-8">
+                <ProductManagement
+                  productType="APPLE"
+                  title="Apples Management"
+                />
+                
+                <ProductManagement
+                  productType="ORANGE"
+                  title="Oranges Management"
+                />
+                
+                {/* Only show MEMBERSHIP tab for ADMIN users */}
+                {userData.profile.appRole === "ADMIN" && (
+                  <ProductManagement
+                    productType="MEMBERSHIP"
+                    title="Memberships Management"
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}

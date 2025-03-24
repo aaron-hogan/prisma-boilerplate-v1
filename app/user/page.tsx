@@ -109,9 +109,19 @@ export default async function UserDashboardPage({
     }))
   };
   
-  // Set active tab - if user is a member and no tab specified, default to member tab
+  // Set active tab - consider role for default tab
   const isMember = ["MEMBER", "STAFF", "ADMIN"].includes(profile.appRole);
-  const activeTab = tab ?? (isMember ? "member" : "profile");
+  const isAdmin = ["ADMIN", "STAFF"].includes(profile.appRole);
+
+  // If tab specified in URL, use that, otherwise prioritize admin over member
+  let activeTab = "profile";
+  if (tab) {
+    activeTab = tab;
+  } else if (isAdmin) {
+    activeTab = "admin";
+  } else if (isMember) {
+    activeTab = "member";
+  }
   
   return <UserDashboard 
     initialData={userData} 
