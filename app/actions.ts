@@ -570,8 +570,9 @@ export const purchaseProductAction = async (formData: FormData) => {
             data: { app_role: 'MEMBER' }
          });
          
-         // Redirect to user page with member tab after successful membership purchase
-         return redirect("/user?tab=member");
+         // Instead of directly redirecting to user page, redirect to special-redirect
+         // which handles token refresh before showing the member dashboard
+         return redirect("/special-redirect");
       }
       
       // Redirect to user page with purchases tab for non-membership products

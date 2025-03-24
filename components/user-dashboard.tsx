@@ -113,6 +113,16 @@ export default function UserDashboard({
    useEffect(() => {
       fetchUserRole();
    }, []);
+   
+   // Additional safety check for when viewing the member tab but not yet recognized as member
+   useEffect(() => {
+      // If trying to view member tab but our current state says user is not a member,
+      // try one more explicit token refresh
+      if (initialTab === 'member' && !isMember) {
+         console.log('Membership state mismatch detected - refreshing token');
+         refreshUserToken();
+      }
+   }, [initialTab, isMember]);
 
    // Note: cancelPurchase function was removed as part of code cleanup
    // Functionality is now handled by the more comprehensive cancelMembership function
