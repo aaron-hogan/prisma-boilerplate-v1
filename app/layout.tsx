@@ -41,9 +41,9 @@ export default function RootLayout({
                            <div className="flex gap-5 items-center font-semibold">
                               <Link href={"/"}>Home</Link>
                               <Link href={"/products"}>Products</Link>
-                              <Link href={"/dashboard"}>Dashboard</Link>
+                              <Link href={"/user"}>User</Link>
                               <Link href={"/member"}>Member</Link>
-                              <Link href={"/admin"}>Admin</Link>
+                              <Link href={"/admin"}>Staff & Admin</Link>
                            </div>
                            <HeaderAuth />
                         </div>

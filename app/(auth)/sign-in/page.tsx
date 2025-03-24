@@ -11,7 +11,7 @@
  * Authentication flow:
  * - User submits email/password
  * - signInAction validates credentials with Supabase
- * - On success: redirects to /dashboard
+ * - On success: redirects to /user
  * - On failure: displays error message
  */
 import { signInAction } from "@/app/actions";

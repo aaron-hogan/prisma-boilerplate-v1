@@ -1,4 +1,4 @@
-// app/(protected)/dashboard/page.tsx
+// app/(protected)/user/page.tsx
 export default function ProtectedDashboardPage() {
   return (
     <div className="w-full">

@@ -85,7 +85,7 @@ export const updateSession = async (request: NextRequest) => {
                } else if (userRole === 'MEMBER') {
                   return NextResponse.redirect(new URL('/member', request.url));
                } else {
-                  return NextResponse.redirect(new URL('/dashboard', request.url));
+                  return NextResponse.redirect(new URL('/user', request.url));
                }
             } catch (error) {
                console.error('Error decoding JWT in middleware:', error);
@@ -100,7 +100,7 @@ export const updateSession = async (request: NextRequest) => {
          if (
             pathname.startsWith('/admin') || // Admin routes 
             pathname.startsWith('/member') || // Member routes
-            pathname === '/dashboard' || // User dashboard
+            pathname === '/user' || // User dashboard
             pathname === '/purchases' // Purchase history
          ) {
             // Redirect unauthenticated users to sign-in page
@@ -128,14 +128,14 @@ export const updateSession = async (request: NextRequest) => {
                if (userRole === 'MEMBER') {
                   return NextResponse.redirect(new URL('/member', request.url));
                } else {
-                  return NextResponse.redirect(new URL('/dashboard', request.url));
+                  return NextResponse.redirect(new URL('/user', request.url));
                }
             }
             
             // Member section authorization
             if (pathname.startsWith('/member') && !['ADMIN', 'STAFF', 'MEMBER'].includes(userRole)) {
                // If user isn't a member or higher role, redirect to standard dashboard
-               return NextResponse.redirect(new URL('/dashboard', request.url));
+               return NextResponse.redirect(new URL('/user', request.url));
             }
             
             // Special case: Fine-grained permissions for specific admin sections

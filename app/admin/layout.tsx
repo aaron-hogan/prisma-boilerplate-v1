@@ -19,7 +19,7 @@ export default async function AdminLayout({
   const hasAccess = await canAccessAdminArea();
   
   if (!hasAccess) {
-    return redirect("/dashboard");
+    return redirect("/user");
   }
 
   return (

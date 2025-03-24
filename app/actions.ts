@@ -145,7 +145,7 @@ export const signInAction = async (formData: FormData) => {
    }
 
    // Determine where to redirect based on user role
-   let redirectPath = "/dashboard"; // Default redirect
+   let redirectPath = "/user"; // Default redirect
 
    // Get the user's role from the access token
    if (data?.session?.access_token) {

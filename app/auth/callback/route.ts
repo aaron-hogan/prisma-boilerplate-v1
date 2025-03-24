@@ -73,5 +73,5 @@ export async function GET(request: Request) {
   }
 
   // Otherwise, redirect to the default protected area
-  return NextResponse.redirect(`${origin}/dashboard`);
+  return NextResponse.redirect(`${origin}/user`);
 }

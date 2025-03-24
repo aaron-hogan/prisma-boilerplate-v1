@@ -19,7 +19,7 @@ export default async function MemberLayout({
   const hasAccess = await canAccessMemberArea();
   
   if (!hasAccess) {
-    return redirect("/dashboard");
+    return redirect("/user");
   }
 
   return (
