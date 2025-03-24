@@ -25,6 +25,7 @@ import { jwtDecode } from "jwt-decode";
 
 // Import JwtPayload interface from shared auth types
 import { JwtPayload, AppRole } from "@/utils/auth.types";
+import { getJwtClaims, hasPermission } from "@/utils/auth";
 
 /**
  * Helper function to revoke a user's membership
@@ -437,6 +438,29 @@ export const signOutAction = async () => {
 
    // Redirect to sign-in page
    return redirect("/sign-in");
+};
+
+/**
+ * Server Action: Get User Role
+ * 
+ * This server action:
+ * 1. Uses the secure getJwtClaims helper to get user claims
+ * 2. Extracts the user's role from the JWT claims
+ * 3. Returns the role as a string
+ * 
+ * Security note: This moves JWT decoding to the server side,
+ * avoiding exposing JWT details in client-side code.
+ * 
+ * @returns The user's role as a string
+ */
+export const getUserRoleAction = async (): Promise<AppRole | null> => {
+   try {
+      const claims = await getJwtClaims();
+      return (claims?.app_role as AppRole) || null;
+   } catch (error) {
+      console.error("Error getting user role:", error);
+      return null;
+   }
 };
 
 /**

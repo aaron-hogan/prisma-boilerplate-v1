@@ -13,11 +13,11 @@
  */
 
 import { useState, useEffect } from "react";
-import { jwtDecode } from "jwt-decode";
 import { createClient } from "@/utils/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { getUserRoleAction } from "@/app/actions";
 
 interface UserData {
    user: {
@@ -96,22 +96,16 @@ export default function UserDashboard({
       await fetchUserRole();
    };
 
-   // Function to fetch user role from JWT - defined outside useEffect so it can be called from other functions
+   // Function to fetch user role using server action
+   // This avoids client-side JWT decoding for better security
    const fetchUserRole = async () => {
-      const supabase = createClient();
-      const {
-         data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.access_token) {
-         try {
-            const decoded = jwtDecode<any>(session.access_token);
-            if (decoded.app_role) {
-               setUserRole(decoded.app_role);
-            }
-         } catch (error) {
-            console.error("Error decoding JWT:", error);
+      try {
+         const role = await getUserRoleAction();
+         if (role) {
+            setUserRole(role);
          }
+      } catch (error) {
+         console.error("Error fetching user role:", error);
       }
    };
 
@@ -120,47 +114,8 @@ export default function UserDashboard({
       fetchUserRole();
    }, []);
 
-   // Function to cancel a purchase
-   const cancelPurchase = async (purchaseId: string) => {
-      setCancelLoading(purchaseId);
-      try {
-         const response = await fetch(`/api/purchases/${purchaseId}`, {
-            method: "DELETE",
-         });
-
-         const result = await response.json();
-
-         if (response.ok) {
-            // Update the purchases list to mark this purchase as cancelled
-            setPurchases((prev) =>
-               prev.map((p) =>
-                  p.id === purchaseId
-                     ? { ...p, deletedAt: new Date().toISOString() }
-                     : p
-               )
-            );
-
-            // If cancelling a membership, we need to refresh the page to update the user role
-            const cancelledPurchase = purchases.find(
-               (p) => p.id === purchaseId
-            );
-            if (cancelledPurchase?.product.type === "MEMBERSHIP") {
-               // Add a small delay to ensure server has time to process the cancellation
-               setTimeout(() => {
-                  router.refresh(); // Force a server refresh to update the user role
-               }, 500);
-            }
-         } else {
-            console.error("Failed to cancel purchase:", result.error);
-            alert(`Error: ${result.error || "Could not cancel purchase"}`);
-         }
-      } catch (error) {
-         console.error("Error cancelling purchase:", error);
-         alert("An error occurred while trying to cancel the purchase");
-      } finally {
-         setCancelLoading(null);
-      }
-   };
+   // Note: cancelPurchase function was removed as part of code cleanup
+   // Functionality is now handled by the more comprehensive cancelMembership function
 
    return (
       <div className="w-full p-4">
@@ -318,6 +273,7 @@ export default function UserDashboard({
                                                       confirmMessage
                                                    )
                                                 ) {
+                                                   // The function only needs the purchase object
                                                    cancelMembership(purchase);
                                                 }
                                              }}

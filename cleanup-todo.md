@@ -18,13 +18,13 @@ This document outlines the necessary cleanup tasks for our codebase after implem
 - [ ] Resolve redundancy between middleware and layout component auth checks
 
 ### 3. Eliminate Duplicate Code & Functionality
-- [ ] Remove unused `cancelPurchase` function in user-dashboard.tsx (lines 124-163)
-- [ ] Fix `cancelMembership` function call (line 322) - missing parameter
+- [x] Remove unused `cancelPurchase` function in user-dashboard.tsx (lines 124-163)
+- [x] Fix `cancelMembership` function call (line 322) - missing parameter
 - [ ] Standardize JWT claim updates across the codebase
 - [ ] Choose between `supabase.auth.updateUser()` and `supabase.auth.admin.updateUserById()`
 
 ### 4. Address Security Issues
-- [ ] Move direct JWT decoding in client component (`user-dashboard.tsx` lines 100-116) to server actions
+- [x] Move direct JWT decoding in client component (`user-dashboard.tsx` lines 100-116) to server actions
 - [ ] Fix raw SQL injection risk by using parameterized queries
 - [ ] Implement proper session invalidation when user roles change
 
