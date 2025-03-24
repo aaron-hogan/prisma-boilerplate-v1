@@ -30,8 +30,6 @@ import { ensureUserProfile } from "@/utils/profile";
  * @returns NextResponse with redirect to appropriate page
  */
 export async function GET(request: Request) {
-  console.log("Auth callback route triggered");
-  
   const requestUrl = new URL(request.url);
   // The temporary auth code from Supabase (expires quickly)
   const code = requestUrl.searchParams.get("code");
@@ -48,20 +46,17 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (error) {
-      console.error("Error exchanging code for session:", error);
+      // Only log errors in development
+      if (process.env.NODE_ENV !== 'production') {
+        console.error("Auth exchange error:", error);
+      }
       // We continue anyway to ensure user lands on a valid page,
       // even though they won't be authenticated
     } else if (data?.user) {
       // Now that the user is authenticated, ensure they have a profile
       // This is critical for the custom JWT claims and RBAC
-      console.log("User authenticated, ensuring profile exists");
       await ensureUserProfile(data.user);
-    } else {
-      console.log("No user data returned from exchange code");
     }
-  } else {
-    console.log("No auth code provided to callback route");
-    // We continue anyway to ensure user lands on a valid page
   }
 
   // Handle redirects securely:

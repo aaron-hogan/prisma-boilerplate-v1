@@ -59,7 +59,7 @@ export const updateSession = async (request: NextRequest) => {
          }
       );
 
-      // Refresh the session and get the user
+      // Primary authentication using getUser() as recommended by Supabase
       const { data: { user } } = await supabase.auth.getUser();
       
       // Get the pathname
@@ -67,6 +67,8 @@ export const updateSession = async (request: NextRequest) => {
       
       // Smart Homepage Routing: Redirect authenticated users from root page to their role-appropriate dashboard
       if (pathname === "/" && user) {
+         // For role-based access, we still need to get the JWT token to access app_role
+         // This is safe because we've already verified the user exists via getUser()
          const { data: { session } } = await supabase.auth.getSession();
          
          if (session?.access_token) {
@@ -113,6 +115,8 @@ export const updateSession = async (request: NextRequest) => {
       }
       
       // Role-Based Access Control (RBAC): Enforce permission boundaries for authenticated users
+      // We've already verified user is authenticated via getUser()
+      // Now safely access the JWT claims for role-based routing
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.access_token) {
@@ -143,8 +147,8 @@ export const updateSession = async (request: NextRequest) => {
             
          } catch (error) {
             console.error('Error decoding JWT in middleware:', error);
-            // On JWT error, continue with standard response
-            // A more strict approach could redirect to an error page
+            // On JWT error, redirect to login - fail closed for security
+            return NextResponse.redirect(new URL('/sign-in', request.url));
          }
       }
 

@@ -30,8 +30,9 @@ interface JwtPayload {
  * 
  * This function:
  * 1. Creates a Supabase client with server-side auth context
- * 2. Retrieves the current session
- * 3. Safely decodes the JWT access token
+ * 2. First validates the user exists with getUser() as primary auth check
+ * 3. Then retrieves the current session to access JWT claims
+ * 4. Safely decodes the JWT access token
  * 
  * @returns The decoded JWT claims or null if no session/token or decoding fails
  * 
@@ -39,9 +40,16 @@ interface JwtPayload {
  * - Server-side function only; don't expose JWT claims directly to the client
  * - Used for role-based access control via the app_role claim
  * - JWT validation is handled by Supabase auth, this only decodes the payload
+ * - Following Supabase best practices by using getUser() first
  */
 export async function getJwtClaims() {
   const supabase = await createClient();
+  
+  // First verify user exists with getUser() for primary authentication
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  
+  // Now we can safely get session for JWT claims
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session?.access_token) return null;

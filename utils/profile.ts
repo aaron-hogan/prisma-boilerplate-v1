@@ -83,7 +83,10 @@ export async function getCreatorInfo(supabase: SupabaseClient, profileId: string
       .single();
     
     if (profileError || !profile) {
-      console.error(`Error fetching profile ${profileId}: ${profileError?.message}`);
+      // Silent failure in production, minimal logging in development
+      if (process.env.NODE_ENV !== 'production' && profileError) {
+        console.error(`Profile fetch error: ${profileError.message}`);
+      }
       return null;
     }
     
@@ -99,7 +102,10 @@ export async function getCreatorInfo(supabase: SupabaseClient, profileId: string
     };
     
   } catch (error) {
-    console.error(`Error in getCreatorInfo: ${error}`);
+    // Silent failure in production, minimal logging in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`Creator info error: ${error}`);
+    }
     return null;
   }
 }
@@ -127,12 +133,11 @@ export async function getCreatorInfo(supabase: SupabaseClient, profileId: string
  */
 export async function ensureUserProfile(user: User) {
   if (!user?.id) {
-    console.error("No user ID provided to ensureUserProfile");
+    // Silent failure - no logging needed for expected conditions
     return null;
   }
   
-  console.log(`Ensuring profile for user ID: ${user.id}`);
-  
+  // Profile synchronization for user
   try {
     // Check if profile already exists
     let profile = await prisma.profile.findUnique({
@@ -142,21 +147,21 @@ export async function ensureUserProfile(user: User) {
     // If profile doesn't exist, create it with default USER role
     // The schema.prisma defines AppRole.USER as the default value
     if (!profile) {
-      console.log(`Creating new profile for user ${user.id}`);
       profile = await prisma.profile.create({
         data: {
           authUserId: user.id,
           // AppRole.USER is the default as specified in the schema
         }
       });
-      console.log(`Created new profile with ID ${profile.id}`);
-    } else {
-      console.log(`Profile already exists for user ${user.id} (Profile ID: ${profile.id})`);
     }
     
     return profile;
   } catch (error) {
-    console.error(`Error in ensureUserProfile: ${error}`);
+    // In production, you might want to use a proper logging service
+    // For now, keeping minimal error logging for critical failures
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`Profile creation error: ${error}`);
+    }
     // Don't throw, so the auth flow can continue even if profile creation fails
     // The user can still authenticate, and we can try to create the profile later
     return null;
