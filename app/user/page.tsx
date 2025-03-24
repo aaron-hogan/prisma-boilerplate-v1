@@ -38,11 +38,33 @@ export default async function UserDashboardPage({
   }
   
   // Fetch user's purchases with product details
-  const purchases = await prisma.purchase.findMany({
-    where: { profileId: profile.id },
-    include: { product: true },
-    orderBy: { createdAt: 'desc' }
-  });
+  // Using raw query to ensure we can filter on deleted_at regardless of schema
+  const purchasesRaw = await prisma.$queryRaw`
+    SELECT 
+      p.id, p.quantity, p.total, p.created_at, p.deleted_at, p.profile_id, p.product_id,
+      pr.id as product_id, pr.name as product_name, pr.type as product_type, pr.price as product_price
+    FROM purchases p
+    JOIN products pr ON p.product_id = pr.id
+    WHERE p.profile_id = ${profile.id}
+    ORDER BY p.created_at DESC
+  `;
+  
+  // Transform raw query results to match expected structure
+  const purchases = (purchasesRaw as any[]).map(p => ({
+    id: p.id,
+    quantity: p.quantity,
+    total: p.total,
+    createdAt: p.created_at,
+    deletedAt: p.deleted_at,
+    profileId: p.profile_id,
+    productId: p.product_id,
+    product: {
+      id: p.product_id,
+      name: p.product_name,
+      type: p.product_type,
+      price: p.product_price,
+    }
+  }));
   
   // Prepare data for the dashboard component
   const userData = {
@@ -64,6 +86,7 @@ export default async function UserDashboardPage({
       total: p.total.toString(),
       quantity: p.quantity,
       createdAt: p.createdAt.toISOString(),
+      deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
       product: {
         id: p.product.id,
         name: p.product.name,

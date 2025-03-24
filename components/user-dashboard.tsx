@@ -16,6 +16,8 @@ import { useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
 import { createClient } from "@/utils/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 interface UserData {
   user: {
@@ -36,6 +38,7 @@ interface UserData {
     total: string;
     quantity: number;
     createdAt: string;
+    deletedAt?: string | null;
     product: {
       id: string;
       name: string;
@@ -52,17 +55,21 @@ interface UserDashboardProps {
 }
 
 export default function UserDashboard({ initialData, successMessage, initialTab }: UserDashboardProps) {
+  const router = useRouter();
+  
   // Set initial tab from URL parameter if provided, otherwise default to 'profile'
   const [activeTab, setActiveTab] = useState<'profile' | 'purchases' | 'member'>(
     initialTab === 'purchases' ? 'purchases' : 
     initialTab === 'member' ? 'member' : 'profile'
   );
   const [userRole, setUserRole] = useState<string>(initialData.profile.appRole);
+  const [purchases, setPurchases] = useState(initialData.purchases);
+  const [cancelLoading, setCancelLoading] = useState<string | null>(null);
   
   // Check if user is a member or higher role
   const isMember = ['MEMBER', 'STAFF', 'ADMIN'].includes(userRole);
   
-  // Get user role from JWT on component mount
+  // Get user role from JWT on component mount and when purchases change
   useEffect(() => {
     const fetchUserRole = async () => {
       const supabase = createClient();
@@ -82,6 +89,44 @@ export default function UserDashboard({ initialData, successMessage, initialTab 
     
     fetchUserRole();
   }, []);
+  
+  // Function to cancel a purchase
+  const cancelPurchase = async (purchaseId: string) => {
+    setCancelLoading(purchaseId);
+    try {
+      const response = await fetch(`/api/purchases/${purchaseId}`, {
+        method: 'DELETE',
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        // Update the purchases list to mark this purchase as cancelled
+        setPurchases(prev => prev.map(p => 
+          p.id === purchaseId 
+            ? { ...p, deletedAt: new Date().toISOString() } 
+            : p
+        ));
+        
+        // If cancelling a membership, we need to refresh the page to update the user role
+        const cancelledPurchase = purchases.find(p => p.id === purchaseId);
+        if (cancelledPurchase?.product.type === 'MEMBERSHIP') {
+          // Add a small delay to ensure server has time to process the cancellation
+          setTimeout(() => {
+            router.refresh(); // Force a server refresh to update the user role
+          }, 500);
+        }
+      } else {
+        console.error('Failed to cancel purchase:', result.error);
+        alert(`Error: ${result.error || 'Could not cancel purchase'}`);
+      }
+    } catch (error) {
+      console.error('Error cancelling purchase:', error);
+      alert('An error occurred while trying to cancel the purchase');
+    } finally {
+      setCancelLoading(null);
+    }
+  };
   
   return (
     <div className="w-full p-4">
@@ -140,30 +185,61 @@ export default function UserDashboard({ initialData, successMessage, initialTab 
         {/* Purchases Tab */}
         {activeTab === 'purchases' && (
           <>
-            {initialData.purchases.length === 0 ? (
+            {purchases.length === 0 ? (
               <div className="py-4">
                 <p>You haven't made any purchases yet.</p>
               </div>
             ) : (
-              <ul className="space-y-3">
-                {initialData.purchases.map((purchase) => (
-                  <li key={purchase.id} className="border-b pb-3">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="font-medium">{purchase.product.name}</span>
-                        <div className="text-sm text-gray-500">Type: {purchase.product.type}</div>
-                        <div className="text-xs text-gray-500">
-                          Purchased: {new Date(purchase.createdAt).toLocaleDateString()}
+              <div>
+                <div className="mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    View your purchase history below. You can cancel any purchase if needed.
+                  </p>
+                </div>
+                <ul className="space-y-4">
+                  {purchases.map((purchase) => (
+                    <li key={purchase.id} className={`border rounded-md p-3 ${purchase.deletedAt ? 'bg-gray-50' : ''}`}>
+                      <div className="flex justify-between items-start gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{purchase.product.name}</span>
+                            {purchase.deletedAt && (
+                              <Badge variant="outline" className="text-red-500 border-red-200 bg-red-50">
+                                Cancelled
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500">Type: {purchase.product.type}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Purchased: {new Date(purchase.createdAt).toLocaleDateString()}
+                          </div>
+                          {purchase.deletedAt && (
+                            <div className="text-xs text-red-500 mt-1">
+                              Cancelled: {new Date(purchase.deletedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className="font-bold">${Number(purchase.total).toFixed(2)}</span>
+                          <div className="text-xs text-gray-500">Qty: {purchase.quantity}</div>
+                          
+                          {/* Only show cancel button for active purchases */}
+                          {!purchase.deletedAt && (
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => cancelPurchase(purchase.id)}
+                              disabled={cancelLoading === purchase.id}
+                            >
+                              {cancelLoading === purchase.id ? 'Cancelling...' : 'Cancel Purchase'}
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      <div>
-                        <span className="font-bold">${Number(purchase.total).toFixed(2)}</span>
-                        <div className="text-xs text-gray-500">Qty: {purchase.quantity}</div>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </>
         )}

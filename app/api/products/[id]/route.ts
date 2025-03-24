@@ -3,83 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/utils/supabase/server';
 
-// API handler for updating a product
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const id = params.id;
-    
-    // Get the authenticated user
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
-    
-    // Find the profile
-    const profile = await prisma.profile.findUnique({
-      where: { authUserId: user.id },
-    });
-    
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: 'Profile not found' },
-        { status: 404 }
-      );
-    }
-    
-    // Find the product
-    const product = await prisma.product.findUnique({
-      where: { id },
-    });
-    
-    if (!product) {
-      return NextResponse.json(
-        { success: false, error: 'Product not found' },
-        { status: 404 }
-      );
-    }
-    
-    // Check if user has permission to update this product
-    if (product.createdBy !== profile.id && profile.appRole !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Permission denied' },
-        { status: 403 }
-      );
-    }
-    
-    // Get request body
-    const body = await request.json();
-    
-    // Update the product
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: {
-        name: body.name,
-        price: body.price,
-      },
-    });
-    
-    return NextResponse.json({ 
-      success: true, 
-      product: updatedProduct,
-    });
-  } catch (error: any) {
-    console.error('Error updating product:', error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
-  }
-}
-
-// API handler for deleting a product
+// API handler for soft deleting a product
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -87,7 +11,7 @@ export async function DELETE(
   try {
     const id = params.id;
     
-    // Get the authenticated user
+    // Authentication check 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -98,7 +22,7 @@ export async function DELETE(
       );
     }
     
-    // Find the profile
+    // Find the profile for permission check
     const profile = await prisma.profile.findUnique({
       where: { authUserId: user.id },
     });
@@ -122,7 +46,7 @@ export async function DELETE(
       );
     }
     
-    // Check if user has permission to delete this product
+    // Check if user has permission
     if (product.createdBy !== profile.id && profile.appRole !== 'ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Permission denied' },
@@ -130,17 +54,118 @@ export async function DELETE(
       );
     }
     
-    // Delete the product
-    await prisma.product.delete({
+    // Check if product has been purchased
+    const purchaseCount = await prisma.purchase.count({
+      where: { productId: id }
+    });
+    
+    // Special handling for membership products
+    if (product.type === 'MEMBERSHIP') {
+      // Check if there are any active memberships using this product
+      const activeMemberships = await prisma.purchase.count({
+        where: { 
+          productId: id,
+          deletedAt: null, // Not cancelled
+          profile: {
+            membership: {
+              endDate: {
+                gt: new Date() // Active membership (end date in the future)
+              }
+            }
+          }
+        }
+      });
+      
+      // If there are active memberships, prevent deletion
+      if (activeMemberships > 0) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Cannot delete a membership product that has active users. Users must cancel their memberships first.' 
+          },
+          { status: 400 }
+        );
+      }
+      
+      // Get profiles that have purchased this membership
+      const purchasedProfiles = await prisma.purchase.findMany({
+        where: { 
+          productId: id,
+          deletedAt: null // Only consider active purchases
+        },
+        select: { profile: { select: { id: true, authUserId: true } } }
+      });
+
+      // For each profile, end their membership and demote to USER if needed
+      for (const purchase of purchasedProfiles) {
+        const profileId = purchase.profile.id;
+        
+        // First, find the membership for this profile
+        const membership = await prisma.membership.findUnique({
+          where: { profileId }
+        });
+        
+        if (membership) {
+          // Set end date to now (ending the membership)
+          await prisma.membership.update({
+            where: { id: membership.id },
+            data: { endDate: new Date() }
+          });
+        }
+        
+        // Check if user has purchased any other active MEMBERSHIP products
+        const otherMembershipPurchases = await prisma.purchase.count({
+          where: {
+            profileId,
+            productId: { not: id },
+            deletedAt: null, // Not cancelled
+            product: {
+              type: 'MEMBERSHIP',
+              deletedAt: null // Not deleted product
+            }
+          }
+        });
+        
+        // If no other membership purchases, demote user to USER role
+        if (otherMembershipPurchases === 0) {
+          await prisma.profile.update({
+            where: { id: profileId },
+            data: { appRole: 'USER' }
+          });
+          
+          // Update their JWT claims if it's the current user
+          if (profileId === profile.id) {
+            await supabase.auth.updateUser({
+              data: { app_role: 'USER' }
+            });
+          } else if (purchase.profile.authUserId) {
+            // For other users, update their JWT claims using admin API
+            try {
+              await supabase.auth.admin.updateUserById(purchase.profile.authUserId, {
+                app_metadata: { app_role: 'USER' }
+              });
+            } catch (err) {
+              console.error('Error updating user JWT claims:', err);
+            }
+          }
+        }
+      }
+    }
+    
+    // Update the product with deletedAt timestamp (soft deletion)
+    const softDeletedProduct = await prisma.product.update({
       where: { id },
+      data: { deletedAt: new Date() },
     });
     
     return NextResponse.json({ 
       success: true, 
-      message: 'Product deleted successfully',
+      message: purchaseCount > 0 
+        ? 'Product archived successfully' // Better messaging for purchased products
+        : 'Product removed successfully',
     });
   } catch (error: any) {
-    console.error('Error deleting product:', error);
+    console.error('Error soft deleting product:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

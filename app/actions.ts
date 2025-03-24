@@ -20,6 +20,7 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ensureUserProfile } from "@/utils/profile";
+import prisma from "@/lib/prisma";
 import { jwtDecode } from "jwt-decode";
 
 /**
@@ -134,6 +135,32 @@ export const signInAction = async (formData: FormData) => {
          // ensureUserProfile creates or updates the user's profile in our database
          // This maintains consistency between Auth and application data
          await ensureUserProfile(data.user);
+         
+         // Check if user has an expired membership and update role if needed
+         const profile = await prisma.profile.findUnique({
+            where: { authUserId: data.user.id },
+            include: { membership: true }
+         });
+         
+         if (profile && profile.appRole === 'MEMBER') {
+            // If user has no membership or if it has expired, downgrade to USER
+            if (!profile.membership || 
+                (profile.membership.endDate && profile.membership.endDate < new Date())) {
+               
+               // Update profile role to USER
+               await prisma.profile.update({
+                  where: { id: profile.id },
+                  data: { appRole: 'USER' }
+               });
+               
+               // Update JWT claims
+               await supabase.auth.updateUser({
+                  data: { app_role: 'USER' }
+               });
+               
+               console.log(`User ${profile.id} downgraded from MEMBER to USER due to expired membership`);
+            }
+         }
       } catch (profileError) {
          // Log error but continue auth flow - user can still sign in
          // The profile creation can be retried on subsequent requests
@@ -400,12 +427,20 @@ export const purchaseProductAction = async (formData: FormData) => {
             where: { profileId: profile.id }
          });
          
+         const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now
+         
          if (existingMembership) {
-            // Update existing membership (extend end date by 1 year from now)
+            // Update existing membership
+            // If the membership has already expired, set the end date to 1 year from now
+            // If it's still active, extend the end date by 1 year from the current end date
+            const newEndDate = existingMembership.endDate && existingMembership.endDate > new Date()
+               ? new Date(existingMembership.endDate.getTime() + 365 * 24 * 60 * 60 * 1000) // Add 1 year to existing end date
+               : oneYearFromNow; // 1 year from now for expired memberships
+               
             await prisma.membership.update({
                where: { id: existingMembership.id },
                data: { 
-                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+                  endDate: newEndDate
                }
             });
          } else {
@@ -413,7 +448,7 @@ export const purchaseProductAction = async (formData: FormData) => {
             await prisma.membership.create({
                data: {
                   profileId: profile.id,
-                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+                  endDate: oneYearFromNow
                }
             });
          }
