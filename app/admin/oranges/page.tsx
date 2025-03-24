@@ -4,12 +4,13 @@
  * This client component implements a CRUD interface for orange products.
  * It demonstrates role-based access control (RBAC) where:
  * - ADMIN and STAFF roles can view and create oranges
- * - Both ADMIN and STAFF roles can delete oranges (different from apples)
+ * - ADMIN role can delete any orange
+ * - Creators can delete their own oranges
  * 
  * Features:
  * - Loads and displays all orange products
  * - Creates new orange products with random prices
- * - Deletes orange products 
+ * - Deletes orange products (admin can delete any, creators can delete their own)
  * - Displays user profile and role information
  * 
  * The page uses Supabase client for data operations with Row Level Security (RLS)
@@ -20,6 +21,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getCreatorInfo } from "@/utils/profile";
 
 /**
  * Interface for product data structure
@@ -35,7 +37,11 @@ interface Product {
     id: string;
     auth_user_id: string;
     app_role: 'ADMIN' | 'STAFF' | 'MEMBER' | 'USER';
+  };
+  creatorInfo?: {
+    displayName: string;
     email?: string;
+    role?: string;
   };
 }
 
@@ -130,12 +136,26 @@ export default function OrangesManagementPage() {
           type: 'ORANGE' as const
         })) || [];
         
-        setOranges(typedData);
-        
-        // Only update the message if we're not preserving the current one
-        if (!preserveMessage) {
-          setMessage(`Loaded ${typedData.length} oranges`);
-        }
+        // Load creator info for each orange
+        Promise.all(
+          typedData.map(async (orange) => {
+            try {
+              const creatorInfo = await getCreatorInfo(supabase, orange.created_by);
+              if (creatorInfo) {
+                orange.creatorInfo = creatorInfo;
+              }
+            } catch (err) {
+              console.error(`Error loading creator info for orange ${orange.id}:`, err);
+            }
+            return orange;
+          })
+        ).then(orangesWithCreatorInfo => {
+          setOranges(orangesWithCreatorInfo);
+          // Only update the message if we're not preserving the current one
+          if (!preserveMessage) {
+            setMessage(`Loaded ${orangesWithCreatorInfo.length} oranges`);
+          }
+        });
       }
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
@@ -211,14 +231,14 @@ export default function OrangesManagementPage() {
         setMessage(`Error: ${error.message}`);
       } else if (orangeData && !userProfile?.id) {
         setMessage("Error: User profile not loaded");
-      } else if (orangeData && orangeData.created_by !== userProfile?.id) {
-        // Orange exists but user didn't create it
-        setMessage("Permission denied: You can only delete oranges you created");
+      } else if (orangeData && orangeData.created_by !== userProfile?.id && userProfile?.app_role !== 'ADMIN') {
+        // Orange exists but user didn't create it and is not an admin
+        setMessage("Permission denied: Only admins or the creator can delete oranges");
       } else if (!orangeData) {
         // Orange doesn't exist or user can't see it
         setMessage("Orange not found or you don't have permission to delete it");
       } else {
-        // Success case
+        // Success case (either admin or creator)
         setMessage("Orange deleted successfully");
         // Pass true to preserve the success message
         loadOranges(true);
@@ -262,17 +282,20 @@ export default function OrangesManagementPage() {
                 <li key={orange.id} className="p-2 border rounded flex justify-between items-center">
                   <div>
                     <span className="block">{orange.name} - ${orange.price}</span>
-                    <span className="block text-xs text-gray-500">Created by: {orange.creator?.auth_user_id || orange.created_by}</span>
+                    <span className="block text-xs text-gray-500">Created by: {orange.creatorInfo?.displayName || orange.creator?.auth_user_id || orange.created_by}</span>
                     <span className="block text-xs text-gray-500">Created: {new Date(orange.created_at).toLocaleString()}</span>
                   </div>
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
-                    onClick={() => deleteOrange(orange.id)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </Button>
+                  {/* Only show delete button to ADMINs or the creator */}
+                  {(userProfile?.app_role === 'ADMIN' || orange.created_by === userProfile?.id) && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={() => deleteOrange(orange.id)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>

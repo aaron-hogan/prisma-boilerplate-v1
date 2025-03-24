@@ -4,27 +4,30 @@
  * This client component implements a CRUD interface for apple products.
  * It demonstrates role-based access control (RBAC) where:
  * - ADMIN and STAFF roles can view and create apples
- * - Only ADMIN role can delete apples (enforced by RLS policies)
+ * - ADMIN role can delete any apple
+ * - Creators can delete their own apples
  * 
  * Features:
  * - Loads and displays all apple products
  * - Creates new apple products with random prices
- * - Deletes apple products (admin only, enforced by RLS)
+ * - Deletes apple products (admin can delete any, creators can delete their own)
  * - Displays user profile and role information
  * 
  * The page uses Supabase client for data operations with Row Level Security (RLS)
  * policies enforced on the database side.
  * 
- * IMPORTANT: Both ADMIN and STAFF users can access this page, but the delete
- * functionality will be blocked for STAFF users by the database RLS policies.
- * The UI currently shows the delete button for all users, but the operation
- * will fail silently for STAFF users.
+ * IMPORTANT: Both ADMIN and STAFF users can access this page:
+ * - ADMIN users can delete any apple 
+ * - Users can delete apples they created (via RLS policies)
+ * - STAFF users who didn't create the apple will see a permission error
+ * The UI only shows the delete button to ADMIN users to prevent confusion.
  */
 "use client";
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
+import { getCreatorInfo } from "@/utils/profile";
 
 /**
  * Interface for product data structure
@@ -40,7 +43,11 @@ interface Product {
     id: string;
     auth_user_id: string;
     app_role: 'ADMIN' | 'STAFF' | 'MEMBER' | 'USER';
+  };
+  creatorInfo?: {
+    displayName: string;
     email?: string;
+    role?: string;
   };
 }
 
@@ -135,12 +142,26 @@ export default function ApplesManagementPage() {
           type: 'APPLE' as const
         })) || [];
         
-        setApples(typedData);
-        
-        // Only update the message if we're not preserving the current one
-        if (!preserveMessage) {
-          setMessage(`Loaded ${typedData.length} apples`);
-        }
+        // Load creator info for each apple
+        Promise.all(
+          typedData.map(async (apple) => {
+            try {
+              const creatorInfo = await getCreatorInfo(supabase, apple.created_by);
+              if (creatorInfo) {
+                apple.creatorInfo = creatorInfo;
+              }
+            } catch (err) {
+              console.error(`Error loading creator info for apple ${apple.id}:`, err);
+            }
+            return apple;
+          })
+        ).then(applesWithCreatorInfo => {
+          setApples(applesWithCreatorInfo);
+          // Only update the message if we're not preserving the current one
+          if (!preserveMessage) {
+            setMessage(`Loaded ${applesWithCreatorInfo.length} apples`);
+          }
+        });
       }
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
@@ -225,14 +246,14 @@ export default function ApplesManagementPage() {
         setMessage(`Error: ${error.message}`);
       } else if (appleData && !userProfile?.id) {
         setMessage("Error: User profile not loaded");
-      } else if (appleData && appleData.created_by !== userProfile?.id) {
-        // Apple exists but user didn't create it
-        setMessage("Permission denied: You can only delete apples you created");
+      } else if (appleData && appleData.created_by !== userProfile?.id && userProfile?.app_role !== 'ADMIN') {
+        // Apple exists but user didn't create it and is not an admin
+        setMessage("Permission denied: Only admins or the creator can delete apples");
       } else if (!appleData) {
         // Apple doesn't exist or user can't see it
         setMessage("Apple not found or you don't have permission to delete it");
       } else {
-        // Success case
+        // Success case (either admin or creator)
         setMessage("Apple deleted successfully");
         // Pass true to preserve the success message
         loadApples(true);
@@ -276,11 +297,11 @@ export default function ApplesManagementPage() {
                 <li key={apple.id} className="p-2 border rounded flex justify-between items-center">
                   <div>
                     <span className="block">{apple.name} - ${apple.price}</span>
-                    <span className="block text-xs text-gray-500">Created by: {apple.creator?.auth_user_id || apple.created_by}</span>
+                    <span className="block text-xs text-gray-500">Created by: {apple.creatorInfo?.displayName || apple.creator?.auth_user_id || apple.created_by}</span>
                     <span className="block text-xs text-gray-500">Created: {new Date(apple.created_at).toLocaleString()}</span>
                   </div>
-                  {/* Only show delete button to ADMIN users */}
-                  {userProfile?.app_role === 'ADMIN' && (
+                  {/* Only show delete button to ADMINs or the creator */}
+                  {(userProfile?.app_role === 'ADMIN' || apple.created_by === userProfile?.id) && (
                     <Button 
                       variant="destructive" 
                       size="sm" 
