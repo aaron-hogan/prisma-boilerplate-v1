@@ -1,6 +1,7 @@
 'use client';
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 // Type for navigation item with roles and authentication requirements
@@ -36,6 +37,17 @@ export default function MainNav({ userRole = 'USER', isAuthenticated = false }: 
 
   return (
     <div className="flex gap-5 items-center font-medium">
+      {/* Logo with link to home */}
+      <Link href="/" className="mr-4 flex items-center">
+        <Image 
+          src="/logo.png"
+          alt="Metrognome PMS"
+          width={32}
+          height={32}
+          className="rounded-md"
+        />
+      </Link>
+      
       {filteredNavItems.map((item) => {
         // Check if current path matches the nav item
         // Also handle nested routes - consider it active if the path starts with the item's href

@@ -11,7 +11,11 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata = {
    metadataBase: new URL(defaultUrl),
    title: "Metrognome PMS",
-   description: "Product Management System",
+   description: "The future of product management",
+   icons: {
+      icon: '/favicon.ico',
+      apple: '/logo.png',
+   },
 };
 
 const geistSans = Geist({
