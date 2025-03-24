@@ -243,23 +243,37 @@ export default function ProductManagement({
     * - Only ADMIN can delete any product
     * - STAFF can only delete their own ORANGE products, but no APPLES
     * - Other roles can delete their own products
-    * - Products with associated purchases can still be soft-deleted
+    * - Products with active purchases cannot be deleted (server-side check)
     *
     * @param id - The unique identifier of the product to soft-delete
     */
    const deleteProduct = async (id: string) => {
       setLoading(true);
       try {
-         // Permission checks remain the same
+         // Get product information for better error messages
          const { data: productData } = await supabase
             .from("products")
-            .select("id, created_by, type")
+            .select("id, created_by, type, name")
             .eq("id", id)
             .maybeSingle();
 
-         // Your role-based permission checks remain the same...
+         if (!productData) {
+            setMessage("Error: Product not found");
+            setLoading(false);
+            return;
+         }
 
-         // The key changes: Call the DELETE API endpoint
+         // Confirm deletion with user
+         const confirmMessage = productData.type === "MEMBERSHIP" 
+            ? "Are you sure you want to archive this membership product? This will make it unavailable for new subscribers."
+            : `Are you sure you want to archive this ${productData.type.toLowerCase()}? It will no longer be available for purchase.`;
+            
+         if (!window.confirm(confirmMessage)) {
+            setLoading(false);
+            return;
+         }
+
+         // Call the DELETE API endpoint
          const response = await fetch(`/api/products/${id}`, {
             method: "DELETE",
          });
@@ -267,11 +281,12 @@ export default function ProductManagement({
          const result = await response.json();
 
          if (!response.ok) {
-            setMessage(`Error: ${result.error || "Failed to process delete"}`);
+            // Display the server error message
+            setMessage(`Error: ${result.error || "Failed to archive product"}`);
          } else {
             setMessage(
                result.message ||
-                  `${productData?.type || "Product"} removed successfully`
+                  `${productData?.type || "Product"} archived successfully`
             );
             // Reload the products list
             loadProducts(true);
@@ -357,7 +372,7 @@ export default function ProductManagement({
                                  onClick={() => deleteProduct(product.id)}
                                  disabled={loading}
                               >
-                                 Archive
+                                 {loading ? "Processing..." : "Archive"}
                               </Button>
                            )}
                         </li>

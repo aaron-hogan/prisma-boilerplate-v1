@@ -59,9 +59,36 @@ export async function DELETE(
       where: { productId: id }
     });
     
-    // Special handling for membership products
+    // Check if the product has any active (non-cancelled) purchases
+    const activePurchasesCount = await prisma.purchase.count({
+      where: { 
+        productId: id,
+        deletedAt: null // Not cancelled
+      }
+    });
+    
+    // Prevent deletion of any product that has active purchases
+    if (activePurchasesCount > 0) {
+      let errorMessage = 'Cannot delete a product that has active purchases.';
+      
+      if (product.type === 'MEMBERSHIP') {
+        errorMessage = 'Cannot delete a membership product that has active subscribers. Users must cancel their memberships first.';
+      } else {
+        errorMessage = `Cannot delete this ${product.type.toLowerCase()} because it has active purchases. Users must cancel their purchases first.`;
+      }
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: errorMessage
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Special handling for membership products - this only runs if there are no active purchases
     if (product.type === 'MEMBERSHIP') {
-      // Check if there are any active memberships using this product
+      // Double-check for active memberships (belt and suspenders approach)
       const activeMemberships = await prisma.purchase.count({
         where: { 
           productId: id,
@@ -81,7 +108,7 @@ export async function DELETE(
         return NextResponse.json(
           { 
             success: false, 
-            error: 'Cannot delete a membership product that has active users. Users must cancel their memberships first.' 
+            error: 'Cannot delete a membership product that has active subscribers. Users must cancel their memberships first.' 
           },
           { status: 400 }
         );

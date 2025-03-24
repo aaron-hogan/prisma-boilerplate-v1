@@ -77,29 +77,46 @@ export default function UserDashboard({
    const [purchases, setPurchases] = useState(initialData.purchases);
    const [cancelLoading, setCancelLoading] = useState<string | null>(null);
 
-   // Check if user is a member or higher role
+   // Check if user is a member or higher role - this is computed from the current state
    const isMember = ["MEMBER", "STAFF", "ADMIN"].includes(userRole);
-
-   // Get user role from JWT on component mount and when purchases change
+   
+   // Watch userRole and adjust activeTab if needed
    useEffect(() => {
-      const fetchUserRole = async () => {
-         const supabase = createClient();
-         const {
-            data: { session },
-         } = await supabase.auth.getSession();
+      // If user role changes and they're no longer a member but the member tab is active,
+      // switch to profile tab
+      if (!isMember && activeTab === "member") {
+         setActiveTab("profile");
+      }
+   }, [userRole, isMember, activeTab]);
+   
+   // Function to refresh JWT token from server
+   const refreshUserToken = async () => {
+      const supabase = createClient();
+      await supabase.auth.refreshSession();
+      await fetchUserRole();
+   };
 
-         if (session?.access_token) {
-            try {
-               const decoded = jwtDecode<any>(session.access_token);
-               if (decoded.app_role) {
-                  setUserRole(decoded.app_role);
-               }
-            } catch (error) {
-               console.error("Error decoding JWT:", error);
+   // Function to fetch user role from JWT - defined outside useEffect so it can be called from other functions
+   const fetchUserRole = async () => {
+      const supabase = createClient();
+      const {
+         data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.access_token) {
+         try {
+            const decoded = jwtDecode<any>(session.access_token);
+            if (decoded.app_role) {
+               setUserRole(decoded.app_role);
             }
+         } catch (error) {
+            console.error("Error decoding JWT:", error);
          }
-      };
+      }
+   };
 
+   // Get user role from JWT on component mount
+   useEffect(() => {
       fetchUserRole();
    }, []);
 
@@ -336,7 +353,18 @@ export default function UserDashboard({
                                                                   )
                                                             );
 
-                                                            // Force refresh to update user role
+                                                            // Immediately update the client-side user role
+                                                            setUserRole("USER");
+                                                            
+                                                            // Switch tab if we're on the member tab
+                                                            if (activeTab === "member") {
+                                                               setActiveTab("profile");
+                                                            }
+                                                            
+                                                            // Refresh the JWT token to get updated claims
+                                                            await refreshUserToken();
+                                                            
+                                                            // Force page refresh to update server components
                                                             router.refresh();
                                                          } else {
                                                             console.error(
@@ -419,8 +447,8 @@ export default function UserDashboard({
                </>
             )}
 
-            {/* Member Tab */}
-            {activeTab === "member" && isMember && (
+            {/* Member Tab - Only render when user has appropriate role */}
+            {activeTab === "member" && isMember ? (
                <div>
                   {/* Membership Status */}
                   <div className="mb-8">
@@ -477,7 +505,19 @@ export default function UserDashboard({
                      </p>
                   </div>
                </div>
-            )}
+            ) : activeTab === "member" ? (
+               // Fallback when non-member tries to access member tab
+               <div className="p-4 text-center">
+                  <p className="text-lg mb-4">You don't have an active membership.</p>
+                  <p className="mb-8">Your membership may have been cancelled or expired.</p>
+                  <Button 
+                     onClick={() => setActiveTab("profile")}
+                     className="mx-auto"
+                  >
+                     Go to Profile
+                  </Button>
+               </div>
+            ) : null}
          </div>
       </div>
    );

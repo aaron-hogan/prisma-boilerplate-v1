@@ -8,8 +8,8 @@ export async function DELETE(
   { params }: { params: { profileId: string } }
 ) {
   try {
-    // Get the profile ID from the URL
-    const profileId = await params.profileId;
+    // Get the profile ID from the URL - no need to await params in Next.js 15+
+    const profileId = params.profileId;
     
     // Get the authenticated user
     const supabase = await createClient();

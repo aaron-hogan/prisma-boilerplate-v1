@@ -547,8 +547,8 @@ export const purchaseProductAction = async (formData: FormData) => {
             console.error("Error refreshing session:", error);
          }
 
-         // Redirect to user page with member tab after successful membership purchase
-         return redirect("/user?tab=member");
+         // Use special client-side redirect to bypass middleware and other redirects
+         return redirect("/special-redirect");
       }
 
       // Redirect to user page with purchases tab for non-membership products
@@ -605,7 +605,8 @@ export const revokeMembershipAction = async (formData: FormData) => {
    const result = await revokeMembership(profileId);
    
    if (result.success) {
-      return encodedRedirect("success", "/user?tab=member", result.message);
+      // After successful revocation, just go to user page
+      return encodedRedirect("success", "/user", result.message);
    } else {
       return encodedRedirect("error", "/user", result.message);
    }
