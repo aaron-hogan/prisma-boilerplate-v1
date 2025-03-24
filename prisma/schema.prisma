@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,52 +8,33 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Enum for user app roles
-enum AppRole {
-  ADMIN
-  STAFF
-  MEMBER
-  USER
-}
-
-// Enum for product types
-enum ProductType {
-  APPLE
-  ORANGE
-  MEMBERSHIP
-}
-
-// User profile connected to Supabase auth.users
 model Profile {
-  id         String   @id @default(uuid())
-  authUserId String   @unique @map("auth_user_id") // Changed from user_id to avoid ambiguous field names
-  appRole    AppRole  @default(USER) @map("app_role")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  products   Product[]
+  id         String      @id @default(uuid())
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  appRole    AppRole     @default(USER) @map("app_role")
+  authUserId String      @unique @map("auth_user_id")
   membership Membership?
+  products   Product[]
   purchases  Purchase[]
 
   @@map("profiles")
 }
 
 model Product {
-  id        String      @id @default(uuid())
+  id        String      @id @default(dbgenerated("extensions.uuid_generate_v4()"))
   name      String
-  type      ProductType // APPLE or ORANGE
+  type      ProductType
   price     Decimal     @db.Decimal(10, 2)
   createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-
-  // Who created this product (important for permissions)
-  creator   Profile @relation(fields: [createdBy], references: [id])
-  createdBy String  @map("created_by")
-
-  // Relations
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
+  createdBy String      @map("created_by")
+  deletedAt DateTime?   @map("deleted_at") @db.Timestamp(6)
+  creator   Profile     @relation(fields: [createdBy], references: [id])
   purchases Purchase[]
 
+  @@index([createdBy], map: "idx_products_created_by")
+  @@index([deletedAt], map: "idx_products_deleted_at")
   @@map("products")
 }
 
@@ -66,25 +44,38 @@ model Membership {
   endDate   DateTime? @map("end_date")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  profileId String  @unique @map("profile_id")
+  profileId String    @unique @map("profile_id")
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@map("memberships")
 }
 
 model Purchase {
-  id        String   @id @default(uuid())
-  quantity  Int      @default(1)
-  total     Decimal  @db.Decimal(10, 2)
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String    @id @default(uuid())
+  quantity  Int       @default(1)
+  total     Decimal   @db.Decimal(10, 2)
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
+  profileId String    @map("profile_id")
+  productId String    @map("product_id")
+  product   Product   @relation(fields: [productId], references: [id])
+  profile   Profile   @relation(fields: [profileId], references: [id])
 
-  // Relations
-  profile   Profile @relation(fields: [profileId], references: [id])
-  profileId String  @map("profile_id")
-  product   Product @relation(fields: [productId], references: [id])
-  productId String  @map("product_id")
-
+  @@index([productId], map: "idx_purchases_product_id")
+  @@index([profileId], map: "idx_purchases_profile_id")
+  @@index([deletedAt], map: "idx_purchases_deleted_at")
   @@map("purchases")
+}
+
+enum AppRole {
+  ADMIN
+  STAFF
+  MEMBER
+  USER
+}
+
+enum ProductType {
+  APPLE
+  ORANGE
+  MEMBERSHIP
 }

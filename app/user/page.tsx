@@ -9,10 +9,9 @@ export default async function UserDashboardPage({
 }: { 
   searchParams: { [key: string]: string | string[] | undefined } 
 }) {
-  // Access searchParams safely - in Next.js 14 searchParams is a dynamic object
+  // Access searchParams safely in Next.js 15
   // Get success message from URL if present
-  const successMessage = searchParams?.success ? 
-    (typeof searchParams.success === 'string' ? searchParams.success : null) : null;
+  const { success, tab } = searchParams;
   
   // Verify user is authenticated
   const supabase = await createClient();
@@ -38,11 +37,33 @@ export default async function UserDashboardPage({
   }
   
   // Fetch user's purchases with product details
-  const purchases = await prisma.purchase.findMany({
-    where: { profileId: profile.id },
-    include: { product: true },
-    orderBy: { createdAt: 'desc' }
-  });
+  // Using raw query to ensure we can filter on deleted_at regardless of schema
+  const purchasesRaw = await prisma.$queryRaw`
+    SELECT 
+      p.id, p.quantity, p.total, p.created_at, p.deleted_at, p.profile_id, p.product_id,
+      pr.id as product_id, pr.name as product_name, pr.type as product_type, pr.price as product_price
+    FROM purchases p
+    JOIN products pr ON p.product_id = pr.id
+    WHERE p.profile_id = ${profile.id}
+    ORDER BY p.created_at DESC
+  `;
+  
+  // Transform raw query results to match expected structure
+  const purchases = (purchasesRaw as any[]).map(p => ({
+    id: p.id,
+    quantity: p.quantity,
+    total: p.total,
+    createdAt: p.created_at,
+    deletedAt: p.deleted_at,
+    profileId: p.profile_id,
+    productId: p.product_id,
+    product: {
+      id: p.product_id,
+      name: p.product_name,
+      type: p.product_type,
+      price: p.product_price,
+    }
+  }));
   
   // Prepare data for the dashboard component
   const userData = {
@@ -64,6 +85,7 @@ export default async function UserDashboardPage({
       total: p.total.toString(),
       quantity: p.quantity,
       createdAt: p.createdAt.toISOString(),
+      deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
       product: {
         id: p.product.id,
         name: p.product.name,
@@ -73,9 +95,9 @@ export default async function UserDashboardPage({
     }))
   };
   
-  // Get the tab from URL if present - safely access the dynamic searchParams
-  const tabParam = searchParams?.tab ? 
-    (typeof searchParams.tab === 'string' ? searchParams.tab : null) : null;
+  // Convert parameters to the right types for safety
+  const successMessage = typeof success === 'string' ? success : null;
+  const tabParam = typeof tab === 'string' ? tab : null;
   
   return <UserDashboard initialData={userData} successMessage={successMessage} initialTab={tabParam} />;
 }

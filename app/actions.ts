@@ -2,11 +2,11 @@
 
 /**
  * Authentication Server Actions Module
- * 
+ *
  * Implements secure authentication flows using Next.js server actions with Supabase Auth.
  * These server-side functions handle user registration, authentication, password management,
  * and role-based redirects while maintaining security best practices.
- * 
+ *
  * Security features:
  * - Server-side only auth operations (no client-side token handling)
  * - HTTP-only cookies for session management
@@ -20,19 +20,122 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ensureUserProfile } from "@/utils/profile";
+import prisma from "@/lib/prisma";
 import { jwtDecode } from "jwt-decode";
 
 /**
  * JWT Payload Interface
- * 
+ *
  * Defines the structure of decoded JWT tokens from Supabase Auth.
  * The app_role claim is set by a Postgres function during token generation
  * and is used for role-based access control throughout the application.
  */
 interface JwtPayload {
-   app_role?: string;  // User role: ADMIN, STAFF, MEMBER, or USER (default)
+   app_role?: string; // User role: ADMIN, STAFF, MEMBER, or USER (default)
    [key: string]: any; // Other standard and custom JWT claims
 }
+
+/**
+ * Helper function to revoke a user's membership
+ * 
+ * This function:
+ * 1. Updates the user's role back to USER
+ * 2. Sets the membership end date to now
+ * 3. Updates JWT claims if needed
+ * 
+ * @param profileId - ID of the profile to revoke membership from
+ * @param isOwnProfile - Whether the user is modifying their own profile
+ * @returns Object indicating success or failure with a message
+ */
+async function revokeMembership(profileId: string, isOwnProfile: boolean) {
+   const supabase = await createClient();
+   
+   try {
+      // 1. Update profile role to USER
+      await prisma.profile.update({
+         where: { id: profileId },
+         data: { appRole: 'USER' }
+      });
+      
+      // 2. End membership by setting endDate to current date
+      const membership = await prisma.membership.findUnique({
+         where: { profileId }
+      });
+      
+      if (membership) {
+         await prisma.membership.update({
+            where: { id: membership.id },
+            data: { 
+               endDate: new Date() // Set to current date (ending the membership)
+            }
+         });
+      }
+      
+      // 3. Update JWT claims to reflect new role
+      // Only update the user's own JWT if they're modifying their own profile
+      if (isOwnProfile) {
+         await supabase.auth.updateUser({
+            data: { app_role: 'USER' }
+         });
+      }
+      
+      return { success: true, message: "Membership successfully revoked" };
+   } catch (error) {
+      console.error("Error revoking membership:", error);
+      return { success: false, message: "Failed to revoke membership" };
+   }
+}
+
+/**
+ * Server Action: Revoke Membership
+ * 
+ * This server action:
+ * 1. Verifies the user is authenticated
+ * 2. Checks permission (user can revoke their own membership or admin can revoke any)
+ * 3. Calls the revokeMembership function to update database and JWT token
+ * 4. Redirects with success/error message
+ * 
+ * @param formData - Form data containing profileId
+ * @returns Response with success/error message
+ */
+export const revokeMembershipAction = async (formData: FormData) => {
+   const profileId = formData.get("profileId") as string;
+   const supabase = await createClient();
+   
+   // Get authenticated user
+   const { data: { user } } = await supabase.auth.getUser();
+   
+   if (!user) {
+      return encodedRedirect("error", "/user", "Authentication required");
+   }
+   
+   // Get user's profile
+   const profile = await prisma.profile.findUnique({
+      where: { authUserId: user.id },
+   });
+   
+   if (!profile) {
+      return encodedRedirect("error", "/user", "Profile not found");
+   }
+   
+   // Check if user is admin or the owner of the profile
+   const isAdmin = profile.appRole === "ADMIN";
+   const isOwner = profile.id === profileId;
+   
+   if (!isAdmin && !isOwner) {
+      return encodedRedirect("error", "/user", "Permission denied");
+   }
+   
+   // Call the revokeMembership helper function
+   const result = await revokeMembership(profileId, isOwner);
+   
+   if (result.success) {
+      // After successful revocation, just go to user page
+      return encodedRedirect("success", "/user", result.message);
+   } else {
+      return encodedRedirect("error", "/user", result.message);
+   }
+};
 
 /**
  * Server Action: Sign Up
@@ -109,7 +212,6 @@ export const signUpAction = async (formData: FormData) => {
  * @param formData - Form data from the sign-in form
  * @returns A redirect response to either protected area or sign-in with error
  */
-// app/actions.ts
 export const signInAction = async (formData: FormData) => {
    const email = formData.get("email") as string;
    const password = formData.get("password") as string;
@@ -134,6 +236,36 @@ export const signInAction = async (formData: FormData) => {
          // ensureUserProfile creates or updates the user's profile in our database
          // This maintains consistency between Auth and application data
          await ensureUserProfile(data.user);
+
+         // Check if user has an expired membership and update role if needed
+         const profile = await prisma.profile.findUnique({
+            where: { authUserId: data.user.id },
+            include: { membership: true },
+         });
+
+         if (profile && profile.appRole === "MEMBER") {
+            // If user has no membership or if it has expired, downgrade to USER
+            if (
+               !profile.membership ||
+               (profile.membership.endDate &&
+                  profile.membership.endDate < new Date())
+            ) {
+               // Update profile role to USER
+               await prisma.profile.update({
+                  where: { id: profile.id },
+                  data: { appRole: "USER" },
+               });
+
+               // Update JWT claims
+               await supabase.auth.updateUser({
+                  data: { app_role: "USER" },
+               });
+
+               console.log(
+                  `User ${profile.id} downgraded from MEMBER to USER due to expired membership`
+               );
+            }
+         }
       } catch (profileError) {
          // Log error but continue auth flow - user can still sign in
          // The profile creation can be retried on subsequent requests
@@ -259,11 +391,15 @@ export const resetPasswordAction = async (formData: FormData) => {
 
    // Validate that passwords match
    if (password !== confirmPassword) {
-      return encodedRedirect("error", "/reset-password", "Passwords do not match");
+      return encodedRedirect(
+         "error",
+         "/reset-password",
+         "Passwords do not match"
+      );
    }
 
    // Update the user's password
-   // This operation requires an active session which is automatically 
+   // This operation requires an active session which is automatically
    // provided by Supabase after the user clicks the reset link in their email
    const { error } = await supabase.auth.updateUser({
       password: password,
@@ -271,11 +407,19 @@ export const resetPasswordAction = async (formData: FormData) => {
 
    // Handle any errors during password update
    if (error) {
-      return encodedRedirect("error", "/reset-password", "Password update failed");
+      return encodedRedirect(
+         "error",
+         "/reset-password",
+         "Password update failed"
+      );
    }
 
    // Success message with return statement to properly complete the flow
-   return encodedRedirect("success", "/reset-password", "Password updated successfully");
+   return encodedRedirect(
+      "success",
+      "/reset-password",
+      "Password updated successfully"
+   );
 };
 
 /**
@@ -296,10 +440,10 @@ export const resetPasswordAction = async (formData: FormData) => {
  */
 export const signOutAction = async () => {
    const supabase = await createClient();
-   
+
    // Invalidate session and clear cookies
    await supabase.auth.signOut();
-   
+
    // Redirect to sign-in page
    return redirect("/sign-in");
 };
@@ -311,14 +455,14 @@ export const signOutAction = async () => {
  * 1. Verifies the user is authenticated
  * 2. Finds their profile and the requested product
  * 3. Creates a purchase record linking the profile to the product
- * 4. Redirects to the purchases page
+ * 4. Redirects to the appropriate tab based on product type
  * 
  * Security:
  * - Server-side authentication check prevents unauthorized purchases
  * - Database relations ensure data integrity
  * 
  * @param formData - Form data containing productId
- * @returns Redirect to purchases page or sign-in if not authenticated
+ * @returns Redirect to the appropriate tab or sign-in if not authenticated
  */
 export const purchaseProductAction = async (formData: FormData) => {
    const productId = formData.get("productId") as string;
@@ -328,7 +472,6 @@ export const purchaseProductAction = async (formData: FormData) => {
    const { data: { user } } = await supabase.auth.getUser();
    
    // Get product type to determine if authentication is required
-   const prisma = await import("@/lib/prisma").then(module => module.default);
    const product = await prisma.product.findUnique({ 
       where: { id: productId } 
    });
@@ -349,9 +492,6 @@ export const purchaseProductAction = async (formData: FormData) => {
    }
    
    try {
-      // Use direct import to ensure consistent reference
-      const prisma = await import("@/lib/prisma").then(module => module.default);
-      
       // Get user's profile
       const profile = await prisma.profile.findUnique({ 
          where: { authUserId: user.id } 
@@ -359,15 +499,6 @@ export const purchaseProductAction = async (formData: FormData) => {
       
       if (!profile) {
          return encodedRedirect("error", "/products", "User profile not found");
-      }
-      
-      // Get product details
-      const product = await prisma.product.findUnique({ 
-         where: { id: productId } 
-      });
-      
-      if (!product) {
-         return encodedRedirect("error", "/products", "Product not found");
       }
       
       // Policy check: Only members, staff, and admins can purchase apples
