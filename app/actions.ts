@@ -268,6 +268,9 @@ export const signInAction = async (formData: FormData) => {
       }
    }
 
+   // Refresh the session to get updated JWT claims
+   await supabase.auth.refreshSession();
+
    // Determine where to redirect based on user role
    let redirectPath = "/user"; // Default redirect
 
@@ -281,7 +284,7 @@ export const signInAction = async (formData: FormData) => {
          if (["ADMIN", "STAFF"].includes(userRole)) {
             redirectPath = "/admin";
          } else if (userRole === "MEMBER") {
-            redirectPath = "/member";
+            redirectPath = "/user?tab=member";
          }
       } catch (jwtError) {
          console.error("Error decoding JWT:", jwtError);
@@ -466,120 +469,125 @@ export const getUserRoleAction = async (): Promise<AppRole | null> => {
 /**
  * Server Action: Purchase Product
  * 
- * This server action:
- * 1. Verifies the user is authenticated
- * 2. Finds their profile and the requested product
- * 3. Creates a purchase record linking the profile to the product
- * 4. Redirects to the appropriate tab based on product type
- * 
- * Security:
- * - Server-side authentication check prevents unauthorized purchases
- * - Database relations ensure data integrity
- * 
- * @param formData - Form data containing productId
- * @returns Redirect to the appropriate tab or sign-in if not authenticated
+ * This improved server action:
+ * 1. Verifies authentication
+ * 2. Creates a purchase record
+ * 3. Updates user role if needed (for memberships)
+ * 4. Updates JWT claims directly
+ * 5. Refreshes the session to ensure new claims are active
+ * 6. Redirects to the appropriate dashboard
  */
 export const purchaseProductAction = async (formData: FormData) => {
-   const productId = formData.get("productId") as string;
-   const supabase = await createClient();
-   
-   // Get authenticated user
-   const { data: { user } } = await supabase.auth.getUser();
-   
-   // Get product type to determine if authentication is required
-   const product = await prisma.product.findUnique({ 
-      where: { id: productId } 
-   });
-   
-   if (!product) {
-      return encodedRedirect("error", "/products", "Product not found");
-   }
-   
-   // For membership products, allow redirect to sign-in/sign-up
-   // This makes it easy for new users to purchase a membership right away
-   if (product.type === 'MEMBERSHIP' && !user) {
-      return redirect(`/sign-up?redirectTo=/products&message=${encodeURIComponent('Please sign up or sign in to purchase a membership')}`);
-   }
-   
-   // For all other products, require authentication
-   if (!user) {
-      return redirect("/sign-in");
-   }
-   
-   try {
-      // Get user's profile
-      const profile = await prisma.profile.findUnique({ 
-         where: { authUserId: user.id } 
+  const productId = formData.get("productId") as string;
+  const supabase = await createClient();
+  
+  // Get authenticated user
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Get product type to determine if authentication is required
+  const product = await prisma.product.findUnique({ 
+    where: { id: productId } 
+  });
+  
+  if (!product) {
+    return redirect("/products?error=Product+not+found");
+  }
+  
+  // For membership products, allow redirect to sign-in/sign-up
+  if (product.type === 'MEMBERSHIP' && !user) {
+    return redirect("/sign-up?redirectTo=/products");
+  }
+  
+  // For all other products, require authentication
+  if (!user) {
+    return redirect("/sign-in");
+  }
+  
+  try {
+    // Get user's profile
+    const profile = await prisma.profile.findUnique({ 
+      where: { authUserId: user.id } 
+    });
+    
+    if (!profile) {
+      return redirect("/products?error=Profile+not+found");
+    }
+    
+    // Policy check: Only members, staff, and admins can purchase apples
+    if (product.type === 'APPLE' && !['MEMBER', 'STAFF', 'ADMIN'].includes(profile.appRole)) {
+      return redirect("/products?error=Only+members+can+purchase+apples");
+    }
+    
+    // Create the purchase record
+    await prisma.purchase.create({
+      data: {
+        quantity: 1,
+        total: product.price,
+        profileId: profile.id,
+        productId: product.id
+      }
+    });
+    
+    // If this is a membership product, update the user's role
+    if (product.type === 'MEMBERSHIP') {
+      // Update profile role to MEMBER
+      await prisma.profile.update({
+        where: { id: profile.id },
+        data: { appRole: 'MEMBER' }
       });
       
-      if (!profile) {
-         return encodedRedirect("error", "/products", "User profile not found");
-      }
+      // Create or update membership record
+      const existingMembership = await prisma.membership.findUnique({
+        where: { profileId: profile.id }
+      });
       
-      // Policy check: Only members, staff, and admins can purchase apples
-      if (product.type === 'APPLE' && !['MEMBER', 'STAFF', 'ADMIN'].includes(profile.appRole)) {
-         // Redirect back to products page with error for non-members trying to purchase apples
-         return encodedRedirect("error", "/products", "Only members can purchase apples. Please upgrade your membership.");
-      }
-      
-      // Create the purchase record
-      await prisma.purchase.create({
-         data: {
-            quantity: 1,
-            total: product.price,
+      if (existingMembership) {
+        // Update existing membership (extend end date by 1 year from now)
+        await prisma.membership.update({
+          where: { id: existingMembership.id },
+          data: { 
+            endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+          }
+        });
+      } else {
+        // Create new membership
+        await prisma.membership.create({
+          data: {
             profileId: profile.id,
-            productId: product.id
-         }
-      });
-      
-      // If this is a membership product, update the user's role to MEMBER
-      // and create a membership record if one doesn't exist
-      if (product.type === 'MEMBERSHIP') {
-         // Update profile role to MEMBER
-         await prisma.profile.update({
-            where: { id: profile.id },
-            data: { appRole: 'MEMBER' }
-         });
-         
-         // Create or update membership record
-         const existingMembership = await prisma.membership.findUnique({
-            where: { profileId: profile.id }
-         });
-         
-         if (existingMembership) {
-            // Update existing membership (extend end date by 1 year from now)
-            await prisma.membership.update({
-               where: { id: existingMembership.id },
-               data: { 
-                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
-               }
-            });
-         } else {
-            // Create new membership
-            await prisma.membership.create({
-               data: {
-                  profileId: profile.id,
-                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
-               }
-            });
-         }
-         
-         // Update JWT claims to reflect new role
-         // This will be picked up on next token refresh
-         await supabase.auth.updateUser({
-            data: { app_role: 'MEMBER' }
-         });
-         
-         // Instead of directly redirecting to user page, redirect to special-redirect
-         // which handles token refresh before showing the member dashboard
-         return redirect("/special-redirect");
+            endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+          }
+        });
       }
       
-      // Redirect to user page with purchases tab for non-membership products
-      return redirect("/user?tab=purchases");
-   } catch (error) {
-      // Log error but still redirect to user page
-      console.error("Purchase error:", error);
-      return redirect("/user?tab=purchases");
-   }
+      // Update JWT claims directly
+      await supabase.auth.updateUser({
+        data: { app_role: 'MEMBER' }
+      });
+      
+      // Explicitly refresh the session to get new claims
+      await supabase.auth.refreshSession();
+      
+      // Refresh token via dedicated endpoint for extra reliability
+      try {
+        await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (refreshError) {
+        console.error("Error calling refresh endpoint:", refreshError);
+        // Continue with redirect even if refresh fails
+      }
+      
+      // Redirect to user dashboard with member tab active
+      return redirect("/user?tab=member&success=Membership+activated+successfully");
+    }
+    
+    // Redirect to user page with purchases tab for non-membership products
+    return redirect("/user?tab=purchases&success=Purchase+completed+successfully");
+  } catch (error) {
+    console.error("Purchase error:", error);
+    
+    // Redirect with error message
+    return redirect("/products?error=Purchase+failed");
+  }
 };

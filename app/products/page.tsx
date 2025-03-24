@@ -1,112 +1,107 @@
-// app/products/page.tsx
-import prisma from "@/lib/prisma";
-import { createClient } from "@/utils/supabase/server";
-import ProductList from "@/components/product-list";
+/**
+ * Products Page
+ * 
+ * This page:
+ * 1. Fetches products from the database
+ * 2. Renders a clean products list with purchase buttons
+ * 3. Uses the simplified purchase action
+ */
 
-export default async function ProductsPage() {
-   // Check if user is authenticated and get their role
-   const supabase = await createClient();
-   const {
-      data: { user },
-   } = await supabase.auth.getUser();
-   const isAuthenticated = !!user;
+import prisma from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server';
+import { Button } from '@/components/ui/button';
+import { purchaseProductAction } from '@/app/actions';
 
-   // Get user's profile to check role
-   let userRole = "USER"; // Default role
-
-   if (user) {
-      const profile = await prisma.profile.findUnique({
-         where: { authUserId: user.id },
-      });
-
-      if (profile) {
-         userRole = profile.appRole;
-      }
-   }
-
-   // Check if user can see apples (member or higher)
-   const canSeeApples = ["MEMBER", "STAFF", "ADMIN"].includes(userRole);
-
-   // Fetch all products
-   // Everyone can see oranges and memberships, but only members and above can see apples
-   const products = await prisma.product.findMany({
-      where: {
-         deletedAt: null, // Only show active products
-      },
-      orderBy: { createdAt: "desc" },
-   });
-
-   // Filter products by type and serialize for client component (fixing Decimal issue)
-   const serializedProducts = products.map((p) => ({
-      id: p.id,
-      name: p.name,
-      type: p.type,
-      price: p.price.toString(), // Convert Decimal to string
-      createdAt: p.createdAt.toISOString(),
-   }));
-
-   // Filter by product types
-   const apples = serializedProducts.filter((p) => p.type === "APPLE");
-   const oranges = serializedProducts.filter((p) => p.type === "ORANGE");
-   const memberships = serializedProducts.filter(
-      (p) => p.type === "MEMBERSHIP"
-   );
-
-   return (
-      <div className="w-full p-4">
-         <h1 className="text-2xl font-bold mb-4">Products</h1>
-
-         {/* Membership Section - Always Visible */}
-         <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">Memberships</h2>
-            <p className="mb-4">
-               Become a member to access exclusive products and features
-            </p>
-            <ProductList
-               products={memberships}
-               isAuthenticated={isAuthenticated}
-            />
-         </div>
-
-         {/* Product Sections */}
-         {canSeeApples ? (
-            // Member or higher view - show both apple and orange products
-            <div className="mb-6">
-               <h2 className="text-2xl font-bold mb-6">Fruit Products</h2>
-               <p className="mb-6">Browse our complete selection of fruits</p>
-
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                     <h2 className="text-xl font-bold mb-4">Apples</h2>
-                     <p className="mb-4">Member exclusive products</p>
-                     <ProductList
-                        products={apples}
-                        isAuthenticated={isAuthenticated}
-                     />
-                  </div>
-                  <div>
-                     <h2 className="text-xl font-bold mb-4">Oranges</h2>
-                     <p className="mb-4">Available to everyone</p>
-                     <ProductList
-                        products={oranges}
-                        isAuthenticated={isAuthenticated}
-                     />
-                  </div>
-               </div>
+export default async function ProductsPage({
+  searchParams
+}: {
+  searchParams: { [key: string]: string | string[] | undefined }
+}) {
+  // Get error message from URL if present
+  const error = searchParams.error as string | undefined;
+  const success = searchParams.success as string | undefined;
+  
+  // Get all products (not deleted ones)
+  const products = await prisma.product.findMany({
+    where: {
+      deletedAt: null
+    },
+    orderBy: {
+      type: 'asc'
+    }
+  });
+  
+  // Get current user (if logged in)
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // If user is logged in, get their profile to check role
+  let userRole = 'GUEST';
+  if (user) {
+    const profile = await prisma.profile.findUnique({
+      where: { authUserId: user.id }
+    });
+    
+    if (profile) {
+      userRole = profile.appRole;
+    }
+  }
+  
+  // Check if user is a member
+  const isMember = ['MEMBER', 'STAFF', 'ADMIN'].includes(userRole);
+  
+  return (
+    <div className="container mx-auto py-8">
+      <h1 className="text-3xl font-bold mb-8">Products</h1>
+      
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6">
+          {error}
+        </div>
+      )}
+      
+      {/* Success message */}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-6">
+          {success}
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {products.map(product => (
+          <div key={product.id} className="border rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold mb-2">{product.name}</h2>
+            <p className="text-gray-600 mb-4">{product.description}</p>
+            
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-lg font-bold">${Number(product.price).toFixed(2)}</span>
+              <span className="text-sm px-2 py-1 bg-gray-100 rounded-full">
+                {product.type}
+              </span>
             </div>
-         ) : (
-            // Non-member view - only show oranges
-            <div>
-               <h2 className="text-2xl font-bold mb-6">Fruit Products</h2>
-               <p className="mb-6">
-                  Browse our selection of oranges - available to everyone
-               </p>
-               <ProductList
-                  products={oranges}
-                  isAuthenticated={isAuthenticated}
-               />
-            </div>
-         )}
+            
+            {/* Purchase button - with different behavior based on product type and user role */}
+            {(product.type !== 'APPLE' || isMember) ? (
+              <form action={purchaseProductAction}>
+                <input type="hidden" name="productId" value={product.id} />
+                <Button type="submit" className="w-full">
+                  Purchase
+                </Button>
+              </form>
+            ) : (
+              <div>
+                <Button disabled className="w-full mb-2">
+                  Members Only
+                </Button>
+                <p className="text-xs text-center text-gray-500">
+                  This product is only available to members
+                </p>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-   );
+    </div>
+  );
 }

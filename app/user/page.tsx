@@ -1,4 +1,12 @@
-// app/user/page.tsx
+/**
+ * User Dashboard Page
+ * 
+ * This server component:
+ * 1. Checks authentication status
+ * 2. Fetches initial user data from the database
+ * 3. Renders the dashboard component with clean props
+ */
+
 import { createClient } from "@/utils/supabase/server";
 import prisma from '@/lib/prisma';
 import { redirect } from "next/navigation";
@@ -9,9 +17,13 @@ export default async function UserDashboardPage({
 }: { 
   searchParams: { [key: string]: string | string[] | undefined } 
 }) {
-  // Access searchParams safely in Next.js 15
-  // Get success message from URL if present
-  const { success, tab } = searchParams;
+  // Get URL parameters
+  const success = searchParams.success as string | undefined;
+  const tab = searchParams.tab as string | undefined;
+  const error = searchParams.error as string | undefined;
+  
+  // Format success message (prioritize error message if present)
+  const successMessage = error ? error : success ?? null;
   
   // Verify user is authenticated
   const supabase = await createClient();
@@ -37,7 +49,6 @@ export default async function UserDashboardPage({
   }
   
   // Fetch user's purchases with product details
-  // Using raw query to ensure we can filter on deleted_at regardless of schema
   const purchasesRaw = await prisma.$queryRaw`
     SELECT 
       p.id, p.quantity, p.total, p.created_at, p.deleted_at, p.profile_id, p.product_id,
@@ -95,9 +106,13 @@ export default async function UserDashboardPage({
     }))
   };
   
-  // Convert parameters to the right types for safety
-  const successMessage = typeof success === 'string' ? success : null;
-  const tabParam = typeof tab === 'string' ? tab : null;
+  // Set active tab - if user is a member and no tab specified, default to member tab
+  const isMember = ["MEMBER", "STAFF", "ADMIN"].includes(profile.appRole);
+  const activeTab = tab ?? (isMember ? "member" : "profile");
   
-  return <UserDashboard initialData={userData} successMessage={successMessage} initialTab={tabParam} />;
+  return <UserDashboard 
+    initialData={userData} 
+    successMessage={successMessage}
+    activeTab={activeTab}
+  />;
 }
