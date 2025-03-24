@@ -87,76 +87,57 @@ export default function UserDashboard({
     refreshUserData();
   }, []);
 
-  // Function to cancel membership or purchase
+  // Function to cancel membership
   async function cancelPurchase(purchase: UserData['purchases'][0]) {
+    // This function only works for membership purchases
+    if (purchase.product.type !== "MEMBERSHIP") {
+      console.error("Can only cancel membership purchases");
+      return;
+    }
+    
     setCancelLoading(purchase.id);
     try {
-      const isMembership = purchase.product.type === "MEMBERSHIP";
+      // Call membership API endpoint
+      const response = await fetch(
+        `/api/memberships/${userData.profile.id}`,
+        { method: "DELETE" }
+      );
       
-      // For membership purchases, use the membership API endpoint
-      if (isMembership) {
-        const response = await fetch(
-          `/api/memberships/${userData.profile.id}`,
-          { method: "DELETE" }
+      const result = await response.json();
+      
+      if (response.ok) {
+        // Mark purchase as cancelled
+        setPurchases((prev) =>
+          prev.map((p) =>
+            p.id === purchase.id
+              ? { ...p, deletedAt: new Date().toISOString() }
+              : p
+          )
         );
         
-        const result = await response.json();
-        
-        if (response.ok) {
-          // Mark purchase as cancelled
-          setPurchases((prev) =>
-            prev.map((p) =>
-              p.id === purchase.id
-                ? { ...p, deletedAt: new Date().toISOString() }
-                : p
-            )
-          );
-          
-          // Update user data with new role
-          setUserData({
-            ...userData,
-            profile: {
-              ...userData.profile,
-              appRole: "USER"
-            }
-          });
-          
-          // Switch tab if we're on the member tab
-          if (tab === "member") {
-            setTab("profile");
+        // Update user data with new role
+        setUserData({
+          ...userData,
+          profile: {
+            ...userData.profile,
+            appRole: "USER"
           }
-          
-          // Force page refresh to update server components
-          router.refresh();
-        } else {
-          console.error("Failed to cancel membership:", result.error);
-          alert(`Error: ${result.error || "Could not cancel membership"}`);
-        }
-      } else {
-        // For regular purchases, use the purchases API endpoint
-        const response = await fetch(`/api/purchases/${purchase.id}`, {
-          method: "DELETE",
         });
         
-        const result = await response.json();
-        
-        if (response.ok) {
-          // Update the purchases list to mark this purchase as cancelled
-          setPurchases((prev) =>
-            prev.map((p) =>
-              p.id === purchase.id
-                ? { ...p, deletedAt: new Date().toISOString() }
-                : p
-            )
-          );
-        } else {
-          console.error("Failed to cancel purchase:", result.error);
-          alert(`Error: ${result.error || "Could not cancel purchase"}`);
+        // Switch tab if we're on the member tab
+        if (tab === "member") {
+          setTab("profile");
         }
+        
+        // Force page refresh to update server components
+        router.refresh();
+      } else {
+        console.error("Failed to cancel membership:", result.error);
+        alert(`Error: ${result.error || "Could not cancel membership"}`);
       }
     } catch (error) {
-      console.error("Error cancelling purchase:", error);
-      alert("An error occurred while trying to cancel the purchase");
+      console.error("Error cancelling membership:", error);
+      alert("An error occurred while trying to cancel your membership");
     } finally {
       setCancelLoading(null);
     }
@@ -254,7 +235,7 @@ export default function UserDashboard({
                 <div className="mb-4">
                   <p className="text-sm text-muted-foreground">
                     View your purchase history below. You can cancel
-                    any purchase if needed.
+                    membership purchases if needed.
                   </p>
                 </div>
                 <ul className="space-y-4">
@@ -304,17 +285,13 @@ export default function UserDashboard({
                             Qty: {purchase.quantity}
                           </div>
 
-                          {/* Only show cancel button for active purchases */}
-                          {!purchase.deletedAt && (
+                          {/* Only show cancel button for active membership purchases */}
+                          {!purchase.deletedAt && purchase.product.type === "MEMBERSHIP" && (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                const isMembership =
-                                  purchase.product.type === "MEMBERSHIP";
-                                const confirmMessage = isMembership
-                                  ? "Are you sure you want to cancel your membership? You will lose access to member benefits immediately."
-                                  : "Are you sure you want to cancel this purchase?";
+                                const confirmMessage = "Are you sure you want to cancel your membership? You will lose access to member benefits immediately.";
 
                                 if (window.confirm(confirmMessage)) {
                                   cancelPurchase(purchase);
@@ -324,7 +301,7 @@ export default function UserDashboard({
                             >
                               {cancelLoading === purchase.id
                                 ? "Cancelling..."
-                                : "Cancel Purchase"}
+                                : "Cancel Membership"}
                             </Button>
                           )}
                         </div>
