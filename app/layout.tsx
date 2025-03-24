@@ -1,5 +1,7 @@
 import Navigation from "@/components/navigation";
 import UserMenuWrapper from "@/components/user-menu-wrapper";
+import MobileNavWrapper from "@/components/mobile-nav-wrapper";
+import MobileThemeToggle from "@/components/mobile-theme-toggle";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
@@ -10,8 +12,8 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
    metadataBase: new URL(defaultUrl),
-   title: "Application",
-   description: "Application description",
+   title: "Metrognome PMS",
+   description: "Product Management System",
 };
 
 const geistSans = Geist({
@@ -33,25 +35,50 @@ export default function RootLayout({
                enableSystem
                disableTransitionOnChange
             >
-               <div className="flex flex-col min-h-screen">
-                  <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-                     <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
+               <div className="flex min-h-screen">
+                  {/* Left sidebar navigation - hidden on mobile, visible on medium screens and up */}
+                  <aside className="hidden md:flex w-64 border-r border-r-foreground/10 p-4 shrink-0 flex-col h-screen sticky top-0">
+                     {/* App title */}
+                     <div className="text-xl font-bold mb-6">Metrognome PMS</div>
+                     
+                     {/* Main navigation */}
+                     <div className="flex-1 overflow-auto">
                         <Navigation />
-                        <UserMenuWrapper />
                      </div>
-                  </nav>
+                     
+                     {/* Bottom sidebar section with user menu and footer */}
+                     <div className="mt-4 flex flex-col gap-4">
+                        {/* User account menu */}
+                        <div className="border-t border-t-foreground/10 pt-4">
+                           <UserMenuWrapper />
+                        </div>
+                        
+                        {/* Footer */}
+                        <div className="text-center text-xs text-muted-foreground">
+                           <p>© {new Date().getFullYear()} Metrognome PMS</p>
+                        </div>
+                     </div>
+                  </aside>
                   
-                  <main className="flex-1 w-full flex flex-col items-center py-12">
-                     <div className="max-w-5xl w-full px-5">
+                  {/* Mobile header - visible on small screens, hidden on medium screens and up */}
+                  <div className="md:hidden fixed top-0 left-0 right-0 z-10 bg-background border-b border-b-foreground/10 p-4">
+                     <div className="flex justify-between items-center">
+                        <div className="text-lg font-bold">Metrognome PMS</div>
+                        <MobileThemeToggle />
+                     </div>
+                  </div>
+                  
+                  <div className="flex flex-col flex-1">
+                     {/* Main content area */}
+                     <main className="flex-1 p-6 pt-16 pb-20 md:pt-6 md:pb-6 overflow-auto">
                         {children}
+                     </main>
+                     
+                     {/* Mobile navigation - visible at bottom on small screens */}
+                     <div className="md:hidden fixed bottom-0 left-0 right-0 z-10 bg-background border-t border-t-foreground/10 p-2">
+                        <MobileNavWrapper />
                      </div>
-                  </main>
-                  
-                  <footer className="w-full border-t py-8 mt-auto">
-                     <div className="max-w-5xl mx-auto text-center text-xs">
-                        <p>© {new Date().getFullYear()} Metrognome PMS</p>
-                     </div>
-                  </footer>
+                  </div>
                </div>
             </ThemeProvider>
          </body>

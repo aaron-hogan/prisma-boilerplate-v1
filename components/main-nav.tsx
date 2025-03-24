@@ -2,19 +2,54 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Home, ShoppingBag, User, Package, ShoppingCart } from "lucide-react";
 
 // Type for navigation item with roles and authentication requirements
 interface NavItem {
   href: string;
   label: string;
+  icon: React.ReactNode;
   roles: string[];  // Which roles can see this item
   requiresAuth: boolean; // Whether authentication is required
 }
 
-// Navigation data - account and admin links moved to user dropdown menu
+// Navigation data with icons - account and admin links moved to user dropdown menu
 const navItems: NavItem[] = [
-  { href: '/', label: 'Home', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: false }, // Everyone
-  { href: '/products', label: 'Products', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: false }, // Everyone
+  { 
+    href: '/', 
+    label: 'Home', 
+    icon: <Home size={20} />,
+    roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], 
+    requiresAuth: false 
+  },
+  { 
+    href: '/products', 
+    label: 'Products', 
+    icon: <ShoppingBag size={20} />,
+    roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], 
+    requiresAuth: false 
+  },
+  { 
+    href: '/user', 
+    label: 'Dashboard', 
+    icon: <User size={20} />,
+    roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], 
+    requiresAuth: true 
+  },
+  { 
+    href: '/purchases', 
+    label: 'Purchases', 
+    icon: <ShoppingCart size={20} />,
+    roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], 
+    requiresAuth: true 
+  },
+  { 
+    href: '/admin', 
+    label: 'Admin', 
+    icon: <Package size={20} />,
+    roles: ['ADMIN', 'STAFF'], 
+    requiresAuth: true 
+  },
 ];
 
 interface MainNavProps {
@@ -35,7 +70,7 @@ export default function MainNav({ userRole = 'USER', isAuthenticated = false }: 
   );
 
   return (
-    <div className="flex gap-5 items-center font-medium">
+    <div className="flex flex-col gap-3 font-medium w-full">
       {filteredNavItems.map((item) => {
         // Check if current path matches the nav item
         // Also handle nested routes - consider it active if the path starts with the item's href
@@ -48,13 +83,14 @@ export default function MainNav({ userRole = 'USER', isAuthenticated = false }: 
           <Link 
             key={item.href} 
             href={item.href}
-            className={`py-2 relative transition-colors hover:text-primary/80 ${
+            className={`p-3 rounded-md transition-colors hover:bg-primary/10 flex items-center gap-3 ${
               isActive 
-                ? "text-primary font-bold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary" 
-                : "text-foreground/80"
+                ? "text-primary font-bold bg-primary/10 border-l-4 border-primary pl-2" 
+                : "text-foreground/80 pl-3"
             }`}
           >
-            {item.label}
+            <span className="flex-shrink-0">{item.icon}</span>
+            <span>{item.label}</span>
           </Link>
         );
       })}

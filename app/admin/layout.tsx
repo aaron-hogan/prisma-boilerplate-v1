@@ -23,7 +23,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-12 max-w-5xl">
+    <div className="w-full">
       {children}
     </div>
   );
