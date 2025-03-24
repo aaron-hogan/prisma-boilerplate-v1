@@ -9,11 +9,16 @@
  * Features:
  * - Loads and displays all apple products
  * - Creates new apple products with random prices
- * - Deletes apple products (admin only)
+ * - Deletes apple products (admin only, enforced by RLS)
  * - Displays user profile and role information
  * 
  * The page uses Supabase client for data operations with Row Level Security (RLS)
  * policies enforced on the database side.
+ * 
+ * IMPORTANT: Both ADMIN and STAFF users can access this page, but the delete
+ * functionality will be blocked for STAFF users by the database RLS policies.
+ * The UI currently shows the delete button for all users, but the operation
+ * will fail silently for STAFF users.
  */
 "use client";
 
@@ -31,6 +36,12 @@ interface Product {
   type: 'APPLE' | 'ORANGE';
   created_by: string;
   created_at: string;
+  creator?: {
+    id: string;
+    auth_user_id: string;
+    app_role: 'ADMIN' | 'STAFF' | 'MEMBER' | 'USER';
+    email?: string;
+  };
 }
 
 /**
@@ -96,7 +107,7 @@ export default function ApplesManagementPage() {
   }, []);
 
   /**
-   * Loads apple products from the database
+   * Loads apple products from the database along with creator profiles
    * @param preserveMessage - If true, won't update the message unless there's an error
    */
   const loadApples = async (preserveMessage = false) => {
@@ -104,7 +115,15 @@ export default function ApplesManagementPage() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, created_by, created_at, type")
+        .select(`
+          id, 
+          name, 
+          price, 
+          created_by, 
+          created_at, 
+          type,
+          creator:profiles(id, auth_user_id, app_role)
+        `)
         .eq("type", "APPLE");
 
       if (error) {
@@ -172,22 +191,48 @@ export default function ApplesManagementPage() {
 
   /**
    * Deletes an apple product from the database by ID
-   * Note: This operation is restricted by RLS policies to ADMIN role only
+   * Note: This operation is restricted by RLS policies to the creator of the apple
+   * For additional security, we implement frontend checks to only allow ADMIN to delete
    * 
    * @param id - The unique identifier of the apple product to delete
    */
   const deleteApple = async (id: string) => {
     setLoading(true);
+    
+    // Frontend role check - only ADMIN should be able to delete apples
+    if (userProfile?.app_role !== 'ADMIN') {
+      setMessage("Error: Only administrators can delete apples");
+      setLoading(false);
+      return;
+    }
+    
     try {
-      // Delete the product with the specified ID
-      const { error } = await supabase
+      // First, check if the user can read this apple (RLS might prevent it)
+      const { data: appleData } = await supabase
+        .from("products")
+        .select("id, created_by")
+        .eq("id", id)
+        .maybeSingle();
+      
+      // Then attempt the delete operation
+      const { data, error } = await supabase
         .from("products")
         .delete()
         .eq("id", id);
-
+        
+      // Check for RLS policy violations by comparing before and after
       if (error) {
         setMessage(`Error: ${error.message}`);
+      } else if (appleData && !userProfile?.id) {
+        setMessage("Error: User profile not loaded");
+      } else if (appleData && appleData.created_by !== userProfile?.id) {
+        // Apple exists but user didn't create it
+        setMessage("Permission denied: You can only delete apples you created");
+      } else if (!appleData) {
+        // Apple doesn't exist or user can't see it
+        setMessage("Apple not found or you don't have permission to delete it");
       } else {
+        // Success case
         setMessage("Apple deleted successfully");
         // Pass true to preserve the success message
         loadApples(true);
@@ -208,7 +253,7 @@ export default function ApplesManagementPage() {
           <Button onClick={createApple} disabled={loading || !userProfile}>
             Create Apple
           </Button>
-          <Button onClick={loadApples} disabled={loading} variant="outline">
+          <Button onClick={() => loadApples()} disabled={loading} variant="outline">
             Refresh
           </Button>
         </div>
@@ -231,16 +276,20 @@ export default function ApplesManagementPage() {
                 <li key={apple.id} className="p-2 border rounded flex justify-between items-center">
                   <div>
                     <span className="block">{apple.name} - ${apple.price}</span>
-                    <span className="text-xs text-gray-500">Created: {new Date(apple.created_at).toLocaleString()}</span>
+                    <span className="block text-xs text-gray-500">Created by: {apple.creator?.auth_user_id || apple.created_by}</span>
+                    <span className="block text-xs text-gray-500">Created: {new Date(apple.created_at).toLocaleString()}</span>
                   </div>
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
-                    onClick={() => deleteApple(apple.id)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </Button>
+                  {/* Only show delete button to ADMIN users */}
+                  {userProfile?.app_role === 'ADMIN' && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={() => deleteApple(apple.id)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>

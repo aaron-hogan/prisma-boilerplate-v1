@@ -138,12 +138,8 @@ export const updateSession = async (request: NextRequest) => {
                return NextResponse.redirect(new URL('/user', request.url));
             }
             
-            // Special case: Fine-grained permissions for specific admin sections
-            if (pathname.includes('/admin/apples') && userRole !== 'ADMIN') {
-               // Apples management requires ADMIN role (not just STAFF)
-               // This demonstrates granular RBAC within the admin section
-               return NextResponse.redirect(new URL('/admin', request.url));
-            }
+            // No special route restriction for apples management - both ADMIN and STAFF can access
+            // The RLS policies will prevent STAFF from deleting apples at the database level
             
          } catch (error) {
             console.error('Error decoding JWT in middleware:', error);

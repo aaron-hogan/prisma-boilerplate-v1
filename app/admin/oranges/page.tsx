@@ -31,6 +31,12 @@ interface Product {
   type: 'APPLE' | 'ORANGE';
   created_by: string;
   created_at: string;
+  creator?: {
+    id: string;
+    auth_user_id: string;
+    app_role: 'ADMIN' | 'STAFF' | 'MEMBER' | 'USER';
+    email?: string;
+  };
 }
 
 /**
@@ -96,7 +102,7 @@ export default function OrangesManagementPage() {
   }, []);
 
   /**
-   * Loads orange products from the database
+   * Loads orange products from the database along with creator profiles
    * @param preserveMessage - If true, won't update the message unless there's an error
    */
   const loadOranges = async (preserveMessage = false) => {
@@ -104,7 +110,15 @@ export default function OrangesManagementPage() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, created_by, created_at, type")
+        .select(`
+          id, 
+          name, 
+          price, 
+          created_by, 
+          created_at, 
+          type,
+          creator:profiles(id, auth_user_id, app_role)
+        `)
         .eq("type", "ORANGE");
 
       if (error) {
@@ -172,22 +186,39 @@ export default function OrangesManagementPage() {
 
   /**
    * Deletes an orange product from the database by ID
-   * Note: This operation is restricted by RLS policies to ADMIN and STAFF roles
+   * Note: This operation is restricted by RLS policies to the creator of the orange
    * 
    * @param id - The unique identifier of the orange product to delete
    */
   const deleteOrange = async (id: string) => {
     setLoading(true);
     try {
-      // Delete the product with the specified ID
-      const { error } = await supabase
+      // First, check if the user can read this orange (RLS might prevent it)
+      const { data: orangeData } = await supabase
+        .from("products")
+        .select("id, created_by")
+        .eq("id", id)
+        .maybeSingle();
+      
+      // Then attempt the delete operation
+      const { data, error } = await supabase
         .from("products")
         .delete()
         .eq("id", id);
-
+        
+      // Check for RLS policy violations by comparing before and after
       if (error) {
         setMessage(`Error: ${error.message}`);
+      } else if (orangeData && !userProfile?.id) {
+        setMessage("Error: User profile not loaded");
+      } else if (orangeData && orangeData.created_by !== userProfile?.id) {
+        // Orange exists but user didn't create it
+        setMessage("Permission denied: You can only delete oranges you created");
+      } else if (!orangeData) {
+        // Orange doesn't exist or user can't see it
+        setMessage("Orange not found or you don't have permission to delete it");
       } else {
+        // Success case
         setMessage("Orange deleted successfully");
         // Pass true to preserve the success message
         loadOranges(true);
@@ -208,7 +239,7 @@ export default function OrangesManagementPage() {
           <Button onClick={createOrange} disabled={loading || !userProfile}>
             Create Orange
           </Button>
-          <Button onClick={loadOranges} disabled={loading} variant="outline">
+          <Button onClick={() => loadOranges()} disabled={loading} variant="outline">
             Refresh
           </Button>
         </div>
@@ -231,7 +262,8 @@ export default function OrangesManagementPage() {
                 <li key={orange.id} className="p-2 border rounded flex justify-between items-center">
                   <div>
                     <span className="block">{orange.name} - ${orange.price}</span>
-                    <span className="text-xs text-gray-500">Created: {new Date(orange.created_at).toLocaleString()}</span>
+                    <span className="block text-xs text-gray-500">Created by: {orange.creator?.auth_user_id || orange.created_by}</span>
+                    <span className="block text-xs text-gray-500">Created: {new Date(orange.created_at).toLocaleString()}</span>
                   </div>
                   <Button 
                     variant="destructive" 
