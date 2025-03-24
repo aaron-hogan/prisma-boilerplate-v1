@@ -1,38 +1,33 @@
-import Link from "next/link";
+"use client";
 
 /**
- * Admin Dashboard Page
+ * Products Management Page
  * 
- * This page serves as the main entry point for admin functionality.
- * It is protected by middleware and only accessible to users with ADMIN or STAFF roles.
+ * This client component provides a side-by-side interface for managing both apples and oranges.
+ * It uses the ProductManagement component for each product type.
  * 
- * The page provides navigation links to:
- * - Apples Management: For managing apple products (create, read, delete)
- * - Oranges Management: For managing orange products (create, read, delete)
- * 
- * Access control is enforced at multiple levels:
- * 1. Middleware prevents non-admin/staff users from accessing this route
- * 2. Layout components verify authentication
- * 3. Database RLS policies enforce permissions on data operations
+ * Features:
+ * - Side-by-side layout for managing apples and oranges simultaneously
+ * - Uses the shared ProductManagement component
+ * - Provides consistent user experience across product types
  */
-export default function AdminDashboardPage() {
-   return (
-     <div className="w-full">
-       <h1 className="text-2xl font-bold mb-4">Staff & Admin Dashboard</h1>
-       <p>This page is accessible only to users with Admin or Staff roles</p>
-       
-       <div className="mt-4">
-         <p>
-           <Link href="/admin/apples" className="text-blue-500 hover:underline">
-             Apples Management
-           </Link>
-         </p>
-         <p className="mt-2">
-           <Link href="/admin/oranges" className="text-blue-500 hover:underline">
-             Oranges Management
-           </Link>
-         </p>
-       </div>
-     </div>
-   );
+import ProductManagement from "@/components/product-management";
+
+export default function ProductsManagementPage() {
+  return (
+    <div className="w-full p-4">
+      <h1 className="text-2xl font-bold mb-4">Products Management</h1>
+      <p className="mb-6">Manage apples and oranges from a single view</p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="border rounded-lg shadow-sm p-4">
+          <ProductManagement productType="APPLE" title="Apples Management" />
+        </div>
+        
+        <div className="border rounded-lg shadow-sm p-4">
+          <ProductManagement productType="ORANGE" title="Oranges Management" />
+        </div>
+      </div>
+    </div>
+  );
 }
