@@ -479,31 +479,33 @@ export const getUserRoleAction = async (): Promise<AppRole | null> => {
  */
 export const purchaseProductAction = async (formData: FormData) => {
   const productId = formData.get("productId") as string;
-  const supabase = await createClient();
-  
-  // Get authenticated user
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  // Get product type to determine if authentication is required
-  const product = await prisma.product.findUnique({ 
-    where: { id: productId } 
-  });
-  
-  if (!product) {
-    return redirect("/products?error=Product+not+found");
-  }
-  
-  // For membership products, allow redirect to sign-in/sign-up
-  if (product.type === 'MEMBERSHIP' && !user) {
-    return redirect("/sign-up?redirectTo=/products");
-  }
-  
-  // For all other products, require authentication
-  if (!user) {
-    return redirect("/sign-in");
-  }
+  let supabase;
   
   try {
+    supabase = await createClient();
+    
+    // Get authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Get product type to determine if authentication is required
+    const product = await prisma.product.findUnique({ 
+      where: { id: productId } 
+    });
+    
+    if (!product) {
+      return redirect("/products?error=Product+not+found");
+    }
+    
+    // For membership products, allow redirect to sign-in/sign-up
+    if (product.type === 'MEMBERSHIP' && !user) {
+      return redirect("/sign-up?redirectTo=/products");
+    }
+    
+    // For all other products, require authentication
+    if (!user) {
+      return redirect("/sign-in");
+    }
+    
     // Get user's profile
     const profile = await prisma.profile.findUnique({ 
       where: { authUserId: user.id } 
@@ -568,26 +570,34 @@ export const purchaseProductAction = async (formData: FormData) => {
       await supabase.auth.refreshSession();
       
       // Refresh token via dedicated endpoint for extra reliability
-      try {
-        await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-      } catch (refreshError) {
+      // Note: Don't wrap this in try/catch as it's not critical to the flow
+      await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(refreshError => {
         console.error("Error calling refresh endpoint:", refreshError);
-        // Continue with redirect even if refresh fails
-      }
+        // Non-blocking error handling - continue with redirect
+      });
       
       // Redirect to user dashboard with member tab active
+      // IMPORTANT: Don't put this inside a try/catch as Next.js uses exceptions for redirects
       return redirect("/user?tab=member&success=Membership+activated+successfully");
     }
     
     // Redirect to user page with purchases tab for non-membership products
+    // IMPORTANT: Don't put this inside a try/catch as Next.js uses exceptions for redirects
     return redirect("/user?tab=purchases&success=Purchase+completed+successfully");
   } catch (error) {
+    // Only catch actual errors, not redirect exceptions
+    // Check if it's a redirect exception (which isn't actually an error)
+    if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
+      // Re-throw redirect exceptions to let Next.js handle them
+      throw error;
+    }
+    
     console.error("Purchase error:", error);
     
-    // Redirect with error message
+    // Redirect with error message only for actual errors
     return redirect("/products?error=Purchase+failed");
   }
 };

@@ -135,7 +135,7 @@ export async function GET() {
 
 ### 4. Improved Purchase Flow
 
-After role changes, we now explicitly refresh tokens:
+After role changes, we now explicitly refresh tokens and properly handle Next.js redirects:
 
 ```typescript
 // In actions.ts - purchaseProductAction
@@ -143,10 +143,29 @@ After role changes, we now explicitly refresh tokens:
 await supabase.auth.refreshSession();
 
 // Additionally call dedicated refresh endpoint for reliability
+// Using catch on the Promise instead of try/catch to avoid blocking
 await fetch('/api/auth/refresh', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' }
+}).catch(error => {
+  console.error("Error calling refresh endpoint:", error);
+  // Continue with redirect
 });
+
+// IMPORTANT: Next.js uses exceptions for redirects
+// Don't put redirects inside a try/catch or they'll be caught as errors
+return redirect("/user?tab=member&success=Membership+activated+successfully");
+
+// In the main catch block, re-throw NEXT_REDIRECT exceptions
+catch (error) {
+  if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
+    throw error; // Re-throw redirect exceptions to let Next.js handle them
+  }
+  
+  // Handle actual errors
+  console.error("Purchase error:", error);
+  return redirect("/products?error=Purchase+failed");
+}
 ```
 
 ### 5. Cleaner Role-Based UI
@@ -222,3 +241,4 @@ if (pathname.startsWith('/admin') && !['ADMIN', 'STAFF'].includes(userRole)) {
 4. Verify state changes with database checks before proceeding
 5. Keep UI logic simple with direct role checks
 6. Use the latest Supabase cookie API methods (getAll/setAll) to avoid deprecation warnings
+7. Handle Next.js redirects properly (don't catch NEXT_REDIRECT exceptions)
