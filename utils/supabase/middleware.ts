@@ -4,6 +4,7 @@
  * This middleware handles authentication and session refreshing.
  * It intercepts requests, refreshes sessions when needed, and manages redirects.
  * Updated for Next.js 15 async API requirements.
+ * Updated to use recommended getAll/setAll cookie methods to avoid deprecation warnings.
  */
 
 import { createServerClient } from '@supabase/ssr';
@@ -18,17 +19,18 @@ export const createMiddlewareClient = async (request: NextRequest) => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        // Next.js 15: All cookie methods must be async
-        async get(name) {
-          return request.cookies.get(name)?.value;
+        // Next.js 15: All cookie methods must be async with updated API
+        async getAll() {
+          return request.cookies.getAll().map(cookie => ({
+            name: cookie.name,
+            value: cookie.value
+          }));
         },
-        async set(name, value, options) {
-          request.cookies.set(name, value);
-          response.cookies.set(name, value, options);
-        },
-        async remove(name, options) {
-          request.cookies.set(name, '');
-          response.cookies.set(name, '', { ...options, maxAge: 0 });
+        async setAll(cookiesList) {
+          cookiesList.forEach(cookie => {
+            request.cookies.set(cookie.name, cookie.value);
+            response.cookies.set(cookie.name, cookie.value, cookie.options);
+          });
         }
       }
     }

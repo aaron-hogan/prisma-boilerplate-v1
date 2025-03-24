@@ -26,14 +26,49 @@ All Next.js 15 dynamic APIs (cookies(), headers(), searchParams) must be awaited
 // In server.ts, simplified-server.ts, middleware.ts:
 const cookieStore = await cookies();
 
-// In cookie handlers:
-async get(name) {
-  const cookie = await cookieStore.get(name);
-  return cookie?.value;
-}
-
 // In middleware:
 const { supabase, response } = await createMiddlewareClient(request);
+```
+
+### 2. Updated Supabase Cookie Handling
+
+Use the latest recommended cookie API methods to avoid deprecation warnings:
+
+```typescript
+// Updated cookie handling in server.ts
+cookies: {
+  async getAll() {
+    return cookieStore.getAll().map(cookie => ({ 
+      name: cookie.name, 
+      value: cookie.value 
+    }));
+  },
+  async setAll(cookiesList) {
+    try {
+      cookiesList.forEach(cookie => {
+        cookieStore.set(cookie.name, cookie.value, cookie.options);
+      });
+    } catch (error) {
+      // Error handling
+    }
+  }
+}
+
+// Updated cookie handling in middleware.ts
+cookies: {
+  async getAll() {
+    return request.cookies.getAll().map(cookie => ({
+      name: cookie.name,
+      value: cookie.value
+    }));
+  },
+  async setAll(cookiesList) {
+    cookiesList.forEach(cookie => {
+      request.cookies.set(cookie.name, cookie.value);
+      response.cookies.set(cookie.name, cookie.value, cookie.options);
+    });
+  }
+}
 ```
 
 ### 2. Dedicated Token Refresh API
@@ -186,3 +221,4 @@ if (pathname.startsWith('/admin') && !['ADMIN', 'STAFF'].includes(userRole)) {
 3. Use dedicated APIs for critical operations like token refresh
 4. Verify state changes with database checks before proceeding
 5. Keep UI logic simple with direct role checks
+6. Use the latest Supabase cookie API methods (getAll/setAll) to avoid deprecation warnings
