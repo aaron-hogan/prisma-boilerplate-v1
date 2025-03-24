@@ -164,7 +164,7 @@ export default function UserDashboard({
 
   return (
     <div className="w-full p-4">
-      <h1 className="text-2xl font-bold mb-4">User Dashboard</h1>
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
       <p className="mb-6">Manage your account, purchases, and membership</p>
 
       {successMessage && (
@@ -173,58 +173,60 @@ export default function UserDashboard({
         </div>
       )}
 
-      {/* Tab navigation */}
-      <div className="border-b mb-6">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setTab("profile")}
-            className={`py-2 px-4 border-b-2 ${
-              tab === "profile"
-                ? "border-primary font-semibold text-primary"
-                : "border-transparent"
-            }`}
-          >
-            Profile
-          </button>
-          <button
-            onClick={() => setTab("purchases")}
-            className={`py-2 px-4 border-b-2 ${
-              tab === "purchases"
-                ? "border-primary font-semibold text-primary"
-                : "border-transparent"
-            }`}
-          >
-            Purchases
-          </button>
-          {isMember && (
+      {/* Main content area with side navigation */}
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Left side navigation */}
+        <div className="md:w-48 shrink-0">
+          <div className="flex flex-col space-y-1">
             <button
-              onClick={() => setTab("member")}
-              className={`py-2 px-4 border-b-2 ${
-                tab === "member"
-                  ? "border-primary font-semibold text-primary"
-                  : "border-transparent"
+              onClick={() => setTab("profile")}
+              className={`py-2 px-4 text-left rounded ${
+                tab === "profile"
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "hover:bg-secondary"
               }`}
             >
-              Member Area
+              Profile
             </button>
-          )}
-          {isAdmin && (
             <button
-              onClick={() => setTab("admin")}
-              className={`py-2 px-4 border-b-2 ${
-                tab === "admin"
-                  ? "border-primary font-semibold text-primary"
-                  : "border-transparent"
+              onClick={() => setTab("purchases")}
+              className={`py-2 px-4 text-left rounded ${
+                tab === "purchases"
+                  ? "bg-primary text-primary-foreground font-medium"
+                  : "hover:bg-secondary"
               }`}
             >
-              Admin Area
+              Purchases
             </button>
-          )}
+            {isMember && (
+              <button
+                onClick={() => setTab("member")}
+                className={`py-2 px-4 text-left rounded ${
+                  tab === "member"
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "hover:bg-secondary"
+                }`}
+              >
+                Member Area
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setTab("admin")}
+                className={`py-2 px-4 text-left rounded ${
+                  tab === "admin"
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "hover:bg-secondary"
+                }`}
+              >
+                Admin Area
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Tab content */}
-      <div className="border rounded-lg shadow-sm p-4">
+        {/* Right side content area */}
+        <div className="md:flex-1 border rounded-lg shadow-sm p-4">
         {/* Profile Tab */}
         {tab === "profile" && (
           <div className="space-y-2">
@@ -402,14 +404,13 @@ export default function UserDashboard({
         {tab === "admin" && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Admin Dashboard</h2>
               <Badge className="bg-blue-500">
                 {userData.profile.appRole}
               </Badge>
             </div>
             
             <p className="mb-4 text-sm text-muted-foreground">
-              Manage products from a single dashboard. Each tab shows a different product type.
+              Manage products from a single dashboard. Each section shows a different product type.
             </p>
             
             {/* Product Management Tabs */}
@@ -436,6 +437,7 @@ export default function UserDashboard({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
