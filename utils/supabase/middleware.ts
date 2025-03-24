@@ -2,16 +2,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { jwtDecode } from "jwt-decode";
-
-/**
- * Interface for JWT token payload with role-based access control
- * - app_role: The user's role within the application (ADMIN, STAFF, MEMBER, USER)
- * - Additional JWT claims can be accessed via index signature
- */
-interface JwtPayload {
-  app_role?: string;
-  [key: string]: any;
-}
+import { JwtPayload, AppRole } from "@/utils/auth.types";
 
 /**
  * Middleware that handles Supabase authentication and enforces role-based access control.

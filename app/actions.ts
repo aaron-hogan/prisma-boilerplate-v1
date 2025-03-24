@@ -23,17 +23,8 @@ import { ensureUserProfile } from "@/utils/profile";
 import prisma from "@/lib/prisma";
 import { jwtDecode } from "jwt-decode";
 
-/**
- * JWT Payload Interface
- *
- * Defines the structure of decoded JWT tokens from Supabase Auth.
- * The app_role claim is set by a Postgres function during token generation
- * and is used for role-based access control throughout the application.
- */
-interface JwtPayload {
-   app_role?: string; // User role: ADMIN, STAFF, MEMBER, or USER (default)
-   [key: string]: any; // Other standard and custom JWT claims
-}
+// Import JwtPayload interface from shared auth types
+import { JwtPayload, AppRole } from "@/utils/auth.types";
 
 /**
  * Helper function to revoke a user's membership

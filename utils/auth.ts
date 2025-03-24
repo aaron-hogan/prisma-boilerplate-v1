@@ -3,27 +3,7 @@
 
 import { jwtDecode } from "jwt-decode";
 import { createClient } from "@/utils/supabase/server";
-
-/**
- * JWT Payload interface representing the structure of our JWT claims
- * 
- * Our JWTs contain the following standard claims:
- * - sub: Subject (the user ID)
- * - iat: Issued at time
- * - exp: Expiration time
- * - aud: Audience
- * 
- * Custom claims include:
- * - app_role: The user's role in the application (USER, ADMIN, STAFF, MEMBER)
- *   This claim is added by our custom_access_token_hook in the database
- */
-interface JwtPayload {
-  app_role?: string;     // User role, set by Postgres function on token creation/refresh
-  sub?: string;          // Subject (user ID)
-  iat?: number;          // Issued at (timestamp)
-  exp?: number;          // Expiration time (timestamp)
-  [key: string]: any;    // For any additional claims
-}
+import { JwtPayload, AppRole, PermissionResult } from "@/utils/auth.types";
 
 /**
  * Gets JWT claims from the current user session
@@ -80,7 +60,7 @@ export async function hasRole(allowedRoles: string[]) {
 /**
  * Role-Based Access Control (RBAC) permission checks
  * 
- * These functions implement specific permission checks based on user roles.
+ * These functions implement permission checks based on user roles.
  * Use these functions in route handlers, server actions, and middleware
  * to enforce access control.
  * 
@@ -88,12 +68,94 @@ export async function hasRole(allowedRoles: string[]) {
  */
 
 /**
+ * Permission definitions mapping for role-based access
+ * Each permission specifies which roles are allowed to access it
+ */
+const PERMISSIONS = {
+  // Access areas
+  'access:admin': ['ADMIN', 'STAFF'],
+  'access:member': ['ADMIN', 'STAFF', 'MEMBER'],
+  
+  // Products
+  'products:create': ['ADMIN', 'STAFF'],
+  'products:delete': ['ADMIN'],
+  'products:delete:own': ['ADMIN', 'STAFF'], // Staff can delete their own products
+  
+  // Specific product types
+  'apples:delete': ['ADMIN'],
+  'oranges:delete': ['ADMIN', 'STAFF'],
+  
+  // Memberships
+  'memberships:manage': ['ADMIN'],
+  'memberships:cancel:own': ['ADMIN', 'STAFF', 'MEMBER'], // Users can cancel their own memberships
+  
+  // Purchases
+  'purchases:cancel:own': ['ADMIN', 'STAFF', 'MEMBER', 'USER'], // Users can cancel their own purchases
+  'purchases:cancel:any': ['ADMIN'], // Admins can cancel any purchase
+} as const;
+
+export type Permission = keyof typeof PERMISSIONS;
+
+/**
+ * Unified permission checking function
+ * 
+ * @param permission - The permission to check
+ * @param ownerId - Optional owner ID for checking ownership-based permissions
+ * @param resourceOwnerId - Optional resource owner ID for comparing with the user
+ * @returns Object with allowed status and optional reason
+ */
+export async function hasPermission(
+  permission: Permission,
+  ownerId?: string,
+  resourceOwnerId?: string
+): Promise<PermissionResult> {
+  // Get user claims
+  const claims = await getJwtClaims();
+  if (!claims) {
+    return { allowed: false, reason: 'Not authenticated' };
+  }
+  
+  const userRole = claims.app_role || 'USER';
+  
+  // Check if this permission exists
+  if (!PERMISSIONS[permission]) {
+    return { allowed: false, reason: 'Unknown permission' };
+  }
+  
+  // Check if user's role is in the allowed roles for this permission
+  if (PERMISSIONS[permission].includes(userRole as AppRole)) {
+    return { allowed: true };
+  }
+  
+  // Special case for ownership-based permissions
+  if (permission.endsWith(':own') && ownerId && resourceOwnerId) {
+    if (ownerId === resourceOwnerId) {
+      return { allowed: true };
+    }
+    return { 
+      allowed: false, 
+      reason: 'You can only perform this action on resources you own' 
+    };
+  }
+  
+  return { 
+    allowed: false, 
+    reason: 'Insufficient permissions' 
+  };
+}
+
+/**
+ * Legacy permission functions for backward compatibility
+ * These will eventually be deprecated in favor of the unified hasPermission function
+ */
+
+/**
  * Checks if current user can delete apples
  * @returns Boolean - true if user has ADMIN role
  */
 export async function canDeleteApples() {
-  const claims = await getJwtClaims();
-  return claims?.app_role === 'ADMIN';
+  const result = await hasPermission('apples:delete');
+  return result.allowed;
 }
 
 /**
@@ -101,8 +163,8 @@ export async function canDeleteApples() {
  * @returns Boolean - true if user has ADMIN or STAFF role
  */
 export async function canDeleteOranges() {
-  const claims = await getJwtClaims();
-  return ['ADMIN', 'STAFF'].includes(claims?.app_role || '');
+  const result = await hasPermission('oranges:delete');
+  return result.allowed;
 }
 
 /**
@@ -110,8 +172,8 @@ export async function canDeleteOranges() {
  * @returns Boolean - true if user has ADMIN or STAFF role
  */
 export async function canCreateProducts() {
-  const claims = await getJwtClaims();
-  return ['ADMIN', 'STAFF'].includes(claims?.app_role || '');
+  const result = await hasPermission('products:create');
+  return result.allowed;
 }
 
 /**
@@ -119,8 +181,8 @@ export async function canCreateProducts() {
  * @returns Boolean - true if user has ADMIN, STAFF, or MEMBER role
  */
 export async function canAccessMemberArea() {
-  const claims = await getJwtClaims();
-  return ['ADMIN', 'STAFF', 'MEMBER'].includes(claims?.app_role || '');
+  const result = await hasPermission('access:member');
+  return result.allowed;
 }
 
 /**
@@ -128,6 +190,6 @@ export async function canAccessMemberArea() {
  * @returns Boolean - true if user has ADMIN or STAFF role
  */
 export async function canAccessAdminArea() {
-  const claims = await getJwtClaims();
-  return ['ADMIN', 'STAFF'].includes(claims?.app_role || '');
+  const result = await hasPermission('access:admin');
+  return result.allowed;
 }
