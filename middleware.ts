@@ -65,17 +65,14 @@ export async function middleware(request: NextRequest) {
    // Get user role for permission checks
    const userRole = await getUserRole(supabase);
 
-   // For admin routes, check if user has admin role
+   // For admin routes, silently redirect to user dashboard with admin tab active
    if (pathname.startsWith("/admin")) {
-      if (userRole !== "ADMIN" && userRole !== "STAFF") {
-         // If not admin/staff, redirect to dashboard with access denied message
-         const redirectUrl = new URL("/user", request.url);
-         redirectUrl.searchParams.set(
-            "error",
-            "Access denied: Admin area requires elevated permissions"
-         );
-         return NextResponse.redirect(redirectUrl);
-      }
+      const redirectUrl = new URL("/user", request.url);
+      
+      // Set tab=admin parameter - no error messages
+      redirectUrl.searchParams.set("tab", "admin");
+      
+      return NextResponse.redirect(redirectUrl);
    }
 
    // For member routes, check if user has member role

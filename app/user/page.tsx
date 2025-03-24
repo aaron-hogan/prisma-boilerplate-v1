@@ -113,14 +113,25 @@ export default async function UserDashboardPage({
   const isMember = ["MEMBER", "STAFF", "ADMIN"].includes(profile.appRole);
   const isAdmin = ["ADMIN", "STAFF"].includes(profile.appRole);
 
-  // If tab specified in URL, use that, otherwise prioritize admin over member
+  // If tab specified in URL, use that, but ensure user has proper permissions
   let activeTab = "profile";
-  if (tab) {
-    activeTab = tab;
+  if (tab === "admin" && isAdmin) {
+    activeTab = "admin";
+  } else if (tab === "member" && isMember) {
+    activeTab = "member";
+  } else if (tab === "purchases") {
+    activeTab = "purchases";
+  } else if (tab === "profile") {
+    activeTab = "profile";
   } else if (isAdmin) {
     activeTab = "admin";
   } else if (isMember) {
     activeTab = "member";
+  }
+  
+  // If admin tab was requested but user doesn't have permissions, show profile instead
+  if (tab === "admin" && !isAdmin) {
+    activeTab = "profile";
   }
   
   return <UserDashboard 
