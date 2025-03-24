@@ -32,47 +32,57 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
   const searchParams = await props.searchParams;
   
   return (
-    <form className="flex-1 flex flex-col min-w-64">
-      <h1 className="text-2xl font-medium">Sign in</h1>
-      <p className="text-sm text-foreground">
+    <form className="w-full flex flex-col p-4 border rounded-lg shadow-sm">
+      <h1 className="text-2xl font-medium mb-2">Sign in</h1>
+      <p className="text-sm text-muted-foreground mb-6">
         Don't have an account?{" "}
-        <Link className="text-foreground font-medium underline" href="/sign-up">
+        <Link className="text-primary font-medium underline" href="/sign-up">
           Sign up
         </Link>
       </p>
-      <div className="flex flex-col gap-2 [&>input]:mb-3 mt-8">
+      <div className="flex flex-col gap-4">
         {/* Email field with validation */}
-        <Label htmlFor="email">Email</Label>
-        <Input 
-          name="email" 
-          placeholder="you@example.com" 
-          required 
-          type="email"
-          autoComplete="email"
-        />
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input 
+            name="email" 
+            placeholder="you@example.com" 
+            required 
+            type="email"
+            autoComplete="email"
+          />
+        </div>
         
         {/* Password field with forgot password link */}
-        <div className="flex justify-between items-center">
-          <Label htmlFor="password">Password</Label>
-          <Link
-            className="text-xs text-foreground underline"
-            href="/forgot-password"
-          >
-            Forgot Password?
-          </Link>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Label htmlFor="password">Password</Label>
+            <Link
+              className="text-xs text-primary underline"
+              href="/forgot-password"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+          <Input
+            type="password"
+            name="password"
+            placeholder="Your password"
+            required
+            autoComplete="current-password"
+          />
         </div>
-        <Input
-          type="password"
-          name="password"
-          placeholder="Your password"
-          required
-          autoComplete="current-password"
-        />
         
-        {/* Submit button that invokes the signInAction server action */}
-        <SubmitButton pendingText="Signing In..." formAction={signInAction}>
-          Sign in
-        </SubmitButton>
+        <div className="mt-2">
+          {/* Submit button that invokes the signInAction server action */}
+          <SubmitButton 
+            className="w-full" 
+            pendingText="Signing In..." 
+            formAction={signInAction}
+          >
+            Sign in
+          </SubmitButton>
+        </div>
         
         {/* Display error message if authentication fails */}
         <FormMessage message={searchParams} />
