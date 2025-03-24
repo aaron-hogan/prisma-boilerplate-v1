@@ -3,7 +3,10 @@ import { createClient } from "@/utils/supabase/server";
 import prisma from '@/lib/prisma';
 import { redirect } from "next/navigation";
 
-export default async function PurchasesPage() {
+export default async function PurchasesPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined } }) {
+  // Get success message from URL if present
+  const successMessage = typeof searchParams?.success === 'string' ? searchParams.success : null;
+  
   // Verify user is authenticated
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -37,6 +40,12 @@ export default async function PurchasesPage() {
     <div className="w-full p-4">
       <h1 className="text-2xl font-bold mb-4">Your Purchases</h1>
       <p className="mb-6">View your purchase history</p>
+      
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-3 mb-6">
+          {successMessage}
+        </div>
+      )}
       
       <div className="border rounded-lg shadow-sm p-4">
         {purchases.length === 0 ? (

@@ -5,8 +5,9 @@ import { purchaseProductAction } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
 
 export default async function PublicProductsPage() {
-  // Fetch products directly with prisma
+  // Fetch only ORANGE products for public view
   const products = await prisma.product.findMany({
+    where: { type: 'ORANGE' },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -17,8 +18,8 @@ export default async function PublicProductsPage() {
 
   return (
     <div className="w-full p-4">
-      <h1 className="text-2xl font-bold mb-4">Products</h1>
-      <p className="mb-6">Browse our selection of products</p>
+      <h1 className="text-2xl font-bold mb-4">Oranges</h1>
+      <p className="mb-6">Browse our selection of oranges - available to everyone</p>
       
       <div className="border rounded-lg shadow-sm p-4">
         <h2 className="text-xl font-semibold mb-4">Available Products</h2>

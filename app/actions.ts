@@ -333,8 +333,8 @@ export const purchaseProductAction = async (formData: FormData) => {
    }
    
    try {
-      // Import prisma within the action to keep module imports clean
-      const prisma = (await import("@/lib/prisma")).default;
+      // Use direct import to ensure consistent reference
+      const prisma = await import("@/lib/prisma").then(module => module.default);
       
       // Get user's profile
       const profile = await prisma.profile.findUnique({ 
@@ -342,7 +342,7 @@ export const purchaseProductAction = async (formData: FormData) => {
       });
       
       if (!profile) {
-         throw new Error("User profile not found");
+         return encodedRedirect("error", "/products", "User profile not found");
       }
       
       // Get product details
@@ -351,7 +351,13 @@ export const purchaseProductAction = async (formData: FormData) => {
       });
       
       if (!product) {
-         throw new Error("Product not found");
+         return encodedRedirect("error", "/products", "Product not found");
+      }
+      
+      // Policy check: Only members, staff, and admins can purchase apples
+      if (product.type === 'APPLE' && !['MEMBER', 'STAFF', 'ADMIN'].includes(profile.appRole)) {
+         // Redirect back to products page with error for non-members trying to purchase apples
+         return encodedRedirect("error", "/products", "Only members can purchase apples. Please upgrade your membership.");
       }
       
       // Create the purchase record
@@ -367,8 +373,8 @@ export const purchaseProductAction = async (formData: FormData) => {
       // Redirect to purchases page
       return redirect("/purchases");
    } catch (error) {
-      // Basic error handling - in production, we'd want better error messaging
+      // Log error but still redirect to purchases
       console.error("Purchase error:", error);
-      return encodedRedirect("error", "/products", "Failed to complete purchase");
+      return redirect("/purchases");
    }
 };

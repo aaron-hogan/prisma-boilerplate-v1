@@ -158,10 +158,37 @@ DROP POLICY IF EXISTS "Staff and admin can create products" ON "products";
 -- Make sure RLS is enabled
 ALTER TABLE "products" ENABLE ROW LEVEL SECURITY;
 
+-- Add a member product visibility function
+CREATE OR REPLACE FUNCTION public.user_can_see_product(product_type text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+AS $$$
+  SELECT 
+    -- Anyone can see oranges
+    product_type = 'ORANGE'
+    OR 
+    -- Only members and higher can see apples
+    (product_type = 'APPLE' AND EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.auth_user_id = auth.uid()::text
+      AND profiles.app_role::text IN ('MEMBER', 'STAFF', 'ADMIN')
+    ));
+$$;
+
+-- Grant permission to use this function
+GRANT EXECUTE ON FUNCTION public.user_can_see_product TO authenticated, anon;
+
 -- Create policies
-CREATE POLICY "Anyone can read products" 
+CREATE POLICY "Users can read products based on their role and product type" 
 ON "products" FOR SELECT 
-USING (auth.uid()::text IS NOT NULL);
+USING (
+  -- Must be authenticated
+  auth.uid()::text IS NOT NULL
+  AND
+  -- Use the product visibility function
+  user_can_see_product(type::text)
+);
 
 CREATE POLICY "Staff and admin can create products"
 ON "products" FOR INSERT
@@ -280,13 +307,44 @@ CREATE POLICY "Admin and Staff can view all purchases"
 ON "purchases" FOR SELECT
 USING (user_has_role(ARRAY['ADMIN'::text, 'STAFF'::text]));
 
-CREATE POLICY "Users can create purchases for their own profile"
+-- Function to check if user can purchase a product
+CREATE OR REPLACE FUNCTION public.user_can_purchase_product(profile_id_param text, product_id_param text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+AS $$$
+  SELECT EXISTS (
+    -- User must own the profile
+    SELECT 1 FROM profiles
+    WHERE profiles.auth_user_id = auth.uid()::text
+    AND profiles.id::text = profile_id_param
+  ) 
+  AND
+  (
+    -- For apples, user must be MEMBER, STAFF, or ADMIN
+    (
+      (SELECT type FROM products WHERE id = product_id_param) = 'APPLE'
+      AND
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.auth_user_id = auth.uid()::text
+        AND profiles.app_role::text IN ('MEMBER', 'STAFF', 'ADMIN')
+      )
+    )
+    OR
+    -- For oranges, any authenticated user can purchase
+    (SELECT type FROM products WHERE id = product_id_param) = 'ORANGE'
+  );
+$$;
+
+-- Grant permission to use this function
+GRANT EXECUTE ON FUNCTION public.user_can_purchase_product TO authenticated, anon;
+
+CREATE POLICY "Users can create purchases based on product type and role"
 ON "purchases" FOR INSERT
-WITH CHECK (profile_id IN (
-  SELECT profiles.id
-  FROM profiles
-  WHERE profiles.auth_user_id = auth.uid()::text
-));
+WITH CHECK (
+  user_can_purchase_product(profile_id, product_id)
+);
 
 CREATE POLICY "Users can delete their own purchases"
 ON "purchases" FOR DELETE

@@ -14,8 +14,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'] }, // Everyone
   { href: '/products', label: 'Products', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'] }, // Everyone
-  { href: '/user', label: 'User', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'] }, // Everyone
-  { href: '/member', label: 'Member', roles: ['MEMBER', 'STAFF', 'ADMIN'] }, // Members and up
+  { href: '/purchases', label: 'Purchases', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'] }, // Everyone
+  { href: '/member', label: 'Members', roles: ['MEMBER', 'STAFF', 'ADMIN'] }, // Members and up
+  { href: '/user', label: 'Profile', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'] }, // Everyone
   { href: '/admin', label: 'Staff & Admin', roles: ['STAFF', 'ADMIN'] }, // Staff and admins only
 ];
 
