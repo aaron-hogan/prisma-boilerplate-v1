@@ -164,9 +164,6 @@ export default function UserDashboard({
 
   return (
     <div className="w-full p-4">
-      <h1 className="text-2xl font-bold mb-2">Hello, {userData.user.email}</h1>
-      <p className="mb-6">Manage your account, purchases, and membership</p>
-
       {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-3 mb-6">
           {successMessage}
