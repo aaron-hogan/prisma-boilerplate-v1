@@ -15,11 +15,14 @@ import { purchaseProductAction } from '@/app/actions';
 export default async function ProductsPage({
   searchParams
 }: {
-  searchParams: { [key: string]: string | string[] | undefined }
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  // Await the searchParams promise in Next.js 15
+  const params = await searchParams;
+  
   // Get error message from URL if present
-  const error = searchParams.error as string | undefined;
-  const success = searchParams.success as string | undefined;
+  const error = params.error as string | undefined;
+  const success = params.success as string | undefined;
   
   // Get all products (not deleted ones)
   const products = await prisma.product.findMany({

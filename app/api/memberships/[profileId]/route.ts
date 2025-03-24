@@ -1,4 +1,10 @@
-// app/api/memberships/[profileId]/route.ts
+/**
+ * Memberships API Route
+ * 
+ * This API route handles membership management operations.
+ * DELETE: Cancels a membership, updates user role, and marks purchases as deleted.
+ */
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import prisma from '@/lib/prisma';
@@ -8,8 +14,8 @@ export async function DELETE(
   { params }: { params: { profileId: string } }
 ) {
   try {
-    // Get the profile ID from the URL - no need to await params in Next.js 15+
-    const profileId = params.profileId;
+    // Access profile ID parameter
+    const { profileId } = params;
     
     // Get the authenticated user
     const supabase = await createClient();
@@ -72,6 +78,9 @@ export async function DELETE(
       await supabase.auth.updateUser({
         data: { app_role: 'USER' }
       });
+      
+      // Explicitly refresh session to update JWT claims
+      await supabase.auth.refreshSession();
     }
     
     // Update all membership product purchases for this profile to be "deleted"
@@ -80,7 +89,7 @@ export async function DELETE(
       SET deleted_at = ${now} 
       WHERE profile_id = ${profileId} 
       AND product_id IN (
-        SELECT id FROM products WHERE type = 'MEMBERSHIP'::\"ProductType\"
+        SELECT id FROM products WHERE type = 'MEMBERSHIP'::"ProductType"
       )
     `;
     

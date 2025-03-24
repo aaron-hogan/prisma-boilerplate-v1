@@ -20,19 +20,64 @@ export default function SpecialRedirectPage() {
   const [status, setStatus] = useState('Refreshing your session...');
   
   useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    
     const refreshAndRedirect = async () => {
       try {
+        console.log('🚀 SPECIAL-REDIRECT PAGE LOADED');
+        console.log('🔄 Starting token refresh process');
         setStatus('Refreshing your session...');
-        const supabase = createClient();
         
-        // First explicitly refresh the session to get updated JWT claims
+        // AGGRESSIVE CLEANUP: Clear ALL possible session flags that could interfere
+        if (typeof window !== 'undefined') {
+          console.log('🧹 Clearing ALL possible session flags');
+          sessionStorage.removeItem('attemptedMemberRefresh');
+          sessionStorage.setItem('membershipActivated', 'true');
+        }
+        
+        // Try the API endpoint first for more reliable server-side refresh
+        const response = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          console.log('✅ Server-side refresh successful');
+          setStatus('Session refreshed! Activating your membership...');
+          
+          // Add a longer delay to ensure proper session sync
+          timeout = setTimeout(() => {
+            router.push('/user?tab=member&fresh=true');
+          }, 1500);
+          return;
+        }
+        
+        // Fallback to client-side refresh if API fails
+        console.log('⚠️ Server-side refresh failed, trying client-side refresh');
+        setStatus('Trying alternative refresh method...');
+        
+        const supabase = createClient();
         const { error } = await supabase.auth.refreshSession();
         
         if (error) {
           console.error('Session refresh failed:', error);
-          setStatus('Error activating membership. Redirecting...');
-          // Still redirect even on error, but with a longer delay
-          setTimeout(() => router.push('/user'), 2000);
+          setStatus('Error activating membership. Retrying...');
+          
+          // Try one more time after a short delay
+          timeout = setTimeout(async () => {
+            try {
+              const { error: retryError } = await supabase.auth.refreshSession();
+              if (!retryError) {
+                router.push('/user?tab=member&fresh=true');
+              } else {
+                // Last resort - full page refresh
+                window.location.href = '/user?tab=member&refresh=true';
+              }
+            } catch (e) {
+              console.error("Retry failed:", e);
+              window.location.href = '/user?tab=member&fresh=true';
+            }
+          }, 1000);
           return;
         }
         
@@ -40,18 +85,23 @@ export default function SpecialRedirectPage() {
         
         // Short delay to ensure cookies are properly set
         // This is recommended by Supabase for handling auth state transitions
-        setTimeout(() => {
+        timeout = setTimeout(() => {
           // Then redirect to the user page with member tab
-          router.push('/user?tab=member');
-        }, 800);
+          router.push('/user?tab=member&fresh=true');
+        }, 1500);
       } catch (err) {
         console.error('Error in refreshAndRedirect:', err);
         setStatus('Something went wrong. Redirecting to dashboard...');
-        setTimeout(() => router.push('/user'), 2000);
+        timeout = setTimeout(() => router.push('/user'), 2000);
       }
     };
     
     refreshAndRedirect();
+    
+    // Clean up timeouts on unmount
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
   }, [router]);
   
   // Display loading message with current status while redirect happens

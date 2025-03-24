@@ -15,12 +15,15 @@ import UserDashboard from "@/components/user-dashboard";
 export default async function UserDashboardPage({ 
   searchParams 
 }: { 
-  searchParams: { [key: string]: string | string[] | undefined } 
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }> 
 }) {
+  // Await the searchParams promise in Next.js 15
+  const params = await searchParams;
+  
   // Get URL parameters
-  const success = searchParams.success as string | undefined;
-  const tab = searchParams.tab as string | undefined;
-  const error = searchParams.error as string | undefined;
+  const success = params.success as string | undefined;
+  const tab = params.tab as string | undefined;
+  const error = params.error as string | undefined;
   
   // Format success message (prioritize error message if present)
   const successMessage = error ? error : success ?? null;

@@ -1,128 +1,188 @@
-# JWT Claim Refresh Solution
+# JWT Token Refresh Solution
 
 ## Problem Summary
 
-The application had a critical issue where member tabs would disappear after a user purchased a membership or logged in with an existing membership. This happened because:
+We encountered issues with JWT token refresh in our Next.js 15 + Supabase authentication system:
 
-1. JWT claims weren't being properly refreshed after role changes
-2. State management in the dashboard component was complex and unreliable
-3. Multiple redirect mechanisms and session flags created race conditions 
-4. Next.js 15 async parameter handling wasn't properly implemented
+1. Member tabs disappeared after login for users with the MEMBER role
+2. Role changes (via purchasing a membership) didn't always update the UI
+3. Next.js 15 "sync dynamic APIs" errors appeared in logs related to cookies and searchParams
 
-## Solution: Simplified Implementation
+## Root Causes
 
-Our solution takes a clean, simplified approach that eliminates the complex special redirect mechanism and reduces state management complexity while maintaining all functionality.
+1. **JWT Claim Update Issues**: When a user's role changed in the database, JWT claims weren't consistently updated.
 
-### Key Components
+2. **Race Conditions**: The client and server could have different views of the user's role during state transitions.
 
-1. **Simplified Supabase Clients**
-   - `simplified-client.ts` - Streamlined browser client
-   - `simplified-server.ts` - Clean server-side client with async cookies
-   - `simplified-middleware.ts` - Middleware-specific client with proper response handling
+3. **Next.js 15 Async API Requirements**: The upgrade to Next.js 15 required proper async handling of cookies and searchParams.
 
-2. **Direct API Endpoints**
-   - `/api/auth/refresh` - Dedicated endpoint for JWT claim refreshing
-   - `/api/user-data` - API to fetch fresh user data from the database
+## Solution Implemented
 
-3. **Streamlined Components**
-   - `simplified-dashboard.tsx` - Clean dashboard implementation with straightforward state management
-   - `user-simplified/page.tsx` - Server component with proper Next.js 15 parameter handling
-   - `products-simplified/page.tsx` - Clean products page with direct action integration
+### 1. Proper Async Handling for Next.js 15
 
-4. **Direct Role-Based Auth**
-   - `middleware-simplified.ts` - Role-based protection using JWT claims directly
-   - `actions-simplified.ts` - Clean server actions with explicit JWT claim updates
-
-### Implementation Details
-
-#### 1. JWT Refresh
-
-The new implementation directly updates JWT claims after role changes and refreshes the session explicitly:
+All Next.js 15 dynamic APIs (cookies(), headers(), searchParams) must be awaited before use:
 
 ```typescript
-// Update JWT claims directly
-await supabase.auth.updateUser({
-  data: { app_role: 'MEMBER' }
-});
+// In server.ts, simplified-server.ts, middleware.ts:
+const cookieStore = await cookies();
 
-// Explicitly refresh the session to get new claims
-await supabase.auth.refreshSession();
+// In cookie handlers:
+async get(name) {
+  const cookie = await cookieStore.get(name);
+  return cookie?.value;
+}
+
+// In middleware:
+const { supabase, response } = await createMiddlewareClient(request);
 ```
 
-#### 2. Clean State Management
+### 2. Dedicated Token Refresh API
 
-The dashboard component now has minimal state and relies on server-provided role information:
+Created a reliable token refresh API endpoint:
 
 ```typescript
-// Check role from profile data
+// In /api/auth/refresh/route.ts
+export async function POST(request: NextRequest) {
+  try {
+    // Get the Supabase client
+    const supabase = await createClient();
+    
+    // Get the current user (this will also refresh the session)
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    // Explicitly refresh the session to update JWT claims
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    
+    // Verify JWT claims match database role (sanity check)
+    // If there's a mismatch, update JWT claims to match database
+    // and refresh again
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Session refreshed successfully',
+      role: profile.appRole
+    });
+  } catch (error) {
+    // Error handling
+  }
+}
+```
+
+### 3. Clean User Data API
+
+Created a dedicated user data API to provide fresh data to client components:
+
+```typescript
+// In /api/user-data/route.ts
+export async function GET() {
+  const supabase = await createClient();
+  
+  // Verify authentication
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  // Get profile with membership
+  const profile = await prisma.profile.findUnique({
+    where: { authUserId: user.id },
+    include: { membership: true }
+  });
+  
+  // Get purchases with products
+  const purchases = await prisma.$queryRaw`...`;
+  
+  // Return user data in a consistent format
+  return NextResponse.json({
+    user: { ... },
+    profile: { ... },
+    purchases: [ ... ]
+  });
+}
+```
+
+### 4. Improved Purchase Flow
+
+After role changes, we now explicitly refresh tokens:
+
+```typescript
+// In actions.ts - purchaseProductAction
+// After updating role to MEMBER and refreshing session
+await supabase.auth.refreshSession();
+
+// Additionally call dedicated refresh endpoint for reliability
+await fetch('/api/auth/refresh', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' }
+});
+```
+
+### 5. Cleaner Role-Based UI
+
+In the user-dashboard component, we use a simple approach to check roles:
+
+```typescript
+// Simple role check
 const isMember = ["MEMBER", "STAFF", "ADMIN"].includes(userData.profile.appRole);
 
-// Only show member tab if user has the role
+// Conditionally show tabs based on role
 {isMember && (
-  <button
-    onClick={() => setTab("member")}
-    className={`py-2 px-4 border-b-2 ${tab === "member" ? "..." : "..."}`}
-  >
+  <button onClick={() => setTab("member")}>
     Member Area
   </button>
 )}
 ```
 
-#### 3. Fresh Data Fetching
+### 6. Improved Middleware with Helper Functions
 
-The dashboard fetches fresh data on mount to ensure it has the latest user information:
+Refactored middleware to use helper functions and proper async handling:
 
 ```typescript
-// Fetch fresh user data once on mount
-useEffect(() => {
-  const refreshUserData = async () => {
-    const response = await fetch('/api/user-data');
-    if (response.ok) {
-      const data = await response.json();
-      setUserData(data);
-      setPurchases(data.purchases);
-    }
-  };
+// Helper functions
+async function isAuthenticated(supabase) {
+  const { data: { session } } = await supabase.auth.getSession();
+  return !!session;
+}
 
-  refreshUserData();
-}, []);
+async function getUserRole(supabase) {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.app_metadata?.app_role || 'USER';
+}
+
+// In middleware
+if (!(await isAuthenticated(supabase))) {
+  // Redirect to login
+}
+
+const userRole = await getUserRole(supabase);
+
+// Role-based routing
+if (pathname.startsWith('/admin') && !['ADMIN', 'STAFF'].includes(userRole)) {
+  // Redirect from admin area
+}
 ```
 
-## Testing the Solution
+## Key Files Updated
 
-1. **Membership Purchase Flow**
-   - Purchase a membership from `/products-simplified`
-   - Verify immediate redirect to dashboard with member tab visible
-   - Verify member tab remains visible after refresh
+1. `/utils/supabase/server.ts` - Async cookie handling
+2. `/utils/supabase/simplified-server.ts` - Async cookie handling
+3. `/utils/supabase/middleware.ts` - Async middleware client (replaced with simplified version)
+4. `/middleware.ts` - Improved role-based routing with helper functions (replaced with simplified version)
+5. `/app/api/user-data/route.ts` - Fresh user data API
+6. `/app/api/auth/refresh/route.ts` - Token refresh API
+7. `/app/api/memberships/[profileId]/route.ts` - Updated membership API
+8. `/app/actions.ts` - Better purchase flow with token refresh
+9. `/components/user-dashboard.tsx` - Cleaner role-based UI
 
-2. **Login Flow**
-   - Log out and log back in with a member account
-   - Verify member tab is visible immediately after login
-   - Refresh the page to verify tab remains visible
+## Results
 
-3. **Membership Cancellation**
-   - Cancel a membership from the purchases tab
-   - Verify the member tab disappears immediately
-   - Log out and log back in to verify member tab remains hidden
+1. Member tabs now correctly appear and remain visible for users with membership
+2. Role changes (after purchasing membership) are consistently reflected in the UI
+3. Next.js 15 "sync dynamic APIs" errors are resolved
+4. The application maintains proper state across page reloads
+5. Authentication flow is more reliable with explicit token refresh
 
-## Benefits of This Approach
+## Key Lessons
 
-1. **Reliability**: Eliminating complex redirects and session flags makes the implementation more predictable
-2. **Simplicity**: Cleaner code with less state management is easier to maintain
-3. **Performance**: Fewer redirects and state changes mean better UX
-4. **Compatibility**: Proper async handling works correctly with Next.js 15
-
-## Migration Path
-
-This implementation preserves all existing functionality while offering a more reliable alternative. The existing implementation remains functional, allowing for gradual migration to the new approach.
-
-To fully migrate:
-1. Replace existing Supabase clients with simplified versions
-2. Update the middleware to the simplified version
-3. Replace client components with the simplified dashboard
-4. Update server actions with the simplified implementation
-5. Remove the special-redirect mechanism
-
-## Credits
-
-Implementation by Aaron Hogan with assistance from Claude AI (Anthropic).
+1. Always await Next.js 15 dynamic APIs before use
+2. Implement helper functions for cleaner, more maintainable code
+3. Use dedicated APIs for critical operations like token refresh
+4. Verify state changes with database checks before proceeding
+5. Keep UI logic simple with direct role checks

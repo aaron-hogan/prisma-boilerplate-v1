@@ -2,34 +2,35 @@
  * Simplified Supabase client for server environments
  * 
  * This module creates a Supabase client for use in server components and API routes.
- * It properly handles cookies from the Next.js API environment.
+ * It properly handles cookies from the Next.js API environment with async support.
  */
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export const createClient = async () => {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) {
-          return cookieStore.get(name)?.value;
+        async get(name) {
+          const cookie = await cookieStore.get(name);
+          return cookie?.value;
         },
-        set(name, value, options) {
+        async set(name, value, options) {
           try {
-            cookieStore.set(name, value, options);
+            await cookieStore.set(name, value, options);
           } catch (error) {
             // This can happen in Server Components when accessing cookies
             // It's expected and can be safely ignored as middleware will handle cookies
           }
         },
-        remove(name, options) {
+        async remove(name, options) {
           try {
-            cookieStore.set(name, '', { ...options, maxAge: 0 });
+            await cookieStore.set(name, '', { ...options, maxAge: 0 });
           } catch (error) {
             // This can happen in Server Components when accessing cookies
             // It's expected and can be safely ignored as middleware will handle cookies
