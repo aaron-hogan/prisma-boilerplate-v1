@@ -19,11 +19,6 @@ export default function MemberDashboardPage() {
      <div className="w-full">
        <h1 className="text-2xl font-bold mb-4">Member Dashboard</h1>
        <p>This page is accessible only to users with Member role or higher</p>
-       <p className="mt-4">
-         <Link href="/member/membership" className="text-blue-500 hover:underline">
-           Membership Management
-         </Link>
-       </p>
      </div>
    );
 }
