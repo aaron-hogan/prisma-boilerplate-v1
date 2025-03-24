@@ -175,6 +175,12 @@ export default function ProductManagement({ productType, title }: ProductManagem
       return;
     }
     
+    // Check if user has permission to create this product type
+    if (productType === 'MEMBERSHIP' && userProfile.app_role !== 'ADMIN') {
+      setMessage(`Permission denied: Only administrators can create membership products`);
+      return;
+    }
+    
     setLoading(true);
     // Generate a random price - different ranges for each product type
     let price;
@@ -233,13 +239,22 @@ export default function ProductManagement({ productType, title }: ProductManagem
         .eq("id", id)
         .maybeSingle();
       
-      // Apply business rule: Staff can't delete apples or memberships, even their own
-      if (productData && 
-          (productData.type === 'APPLE' || productData.type === 'MEMBERSHIP') && 
-          userProfile?.app_role === 'STAFF') {
-        setMessage(`Permission denied: Staff members cannot delete ${productData.type.toLowerCase()}s`);
-        setLoading(false);
-        return;
+      // Apply business rules:
+  // 1. Staff can't delete apples or memberships, even their own
+  // 2. Only admins can delete memberships
+      if (productData) {
+        if ((productData.type === 'APPLE' || productData.type === 'MEMBERSHIP') && 
+            userProfile?.app_role === 'STAFF') {
+          setMessage(`Permission denied: Staff members cannot delete ${productData.type.toLowerCase()}s`);
+          setLoading(false);
+          return;
+        }
+        
+        if (productData.type === 'MEMBERSHIP' && userProfile?.app_role !== 'ADMIN') {
+          setMessage(`Permission denied: Only administrators can delete membership products`);
+          setLoading(false);
+          return;
+        }
       }
       
       // Check if user has permission to delete this product
@@ -281,9 +296,12 @@ export default function ProductManagement({ productType, title }: ProductManagem
       
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          <Button onClick={createProduct} disabled={loading || !userProfile} size="sm">
-            Create {productType}
-          </Button>
+          {/* Only show create button for membership products to admins */}
+          {(productType !== 'MEMBERSHIP' || userProfile?.app_role === 'ADMIN') && (
+            <Button onClick={createProduct} disabled={loading || !userProfile} size="sm">
+              Create {productType}
+            </Button>
+          )}
           <Button onClick={() => loadProducts()} disabled={loading} variant="outline" size="sm">
             Refresh
           </Button>

@@ -190,18 +190,89 @@ USING (
   user_can_see_product(type::text)
 );
 
-CREATE POLICY "Staff and admin can create products"
+-- Admin and staff can create apple and orange products, but only admin can create membership products
+CREATE OR REPLACE FUNCTION public.user_can_create_product(product_type text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT 
+    -- For non-membership products, allow ADMIN and STAFF
+    (product_type != 'MEMBERSHIP' AND
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.auth_user_id = auth.uid()::text
+        AND profiles.app_role::text IN ('ADMIN', 'STAFF')
+      )
+    )
+    OR
+    -- For membership products, only ADMIN can create
+    (product_type = 'MEMBERSHIP' AND
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.auth_user_id = auth.uid()::text
+        AND profiles.app_role::text = 'ADMIN'
+      )
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.user_can_create_product TO authenticated, anon;
+
+CREATE POLICY "Users can create products based on their role and product type"
 ON "products" FOR INSERT
-WITH CHECK (user_has_role(ARRAY['ADMIN'::text, 'STAFF'::text]));
+WITH CHECK (user_can_create_product(type::text));
 
-CREATE POLICY "Creators can update their products"
+-- Function to check if user can update a product
+CREATE OR REPLACE FUNCTION public.user_can_update_product(product_type text, product_created_by text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT 
+    -- For non-membership products, creator can update
+    (product_type != 'MEMBERSHIP' AND user_owns_product(product_created_by))
+    OR
+    -- For membership products, only ADMIN can update
+    (product_type = 'MEMBERSHIP' AND
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.auth_user_id = auth.uid()::text
+        AND profiles.app_role::text = 'ADMIN'
+      )
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.user_can_update_product TO authenticated, anon;
+
+CREATE POLICY "Users can update products based on their role and product type"
 ON "products" FOR UPDATE
-USING (user_owns_product(created_by));
+USING (user_can_update_product(type::text, created_by));
 
--- Updated policy: Admin can delete any product, creators can delete their own
-CREATE POLICY "Admins can delete any product, creators can delete their own" 
+-- Function to check if user can delete a product
+CREATE OR REPLACE FUNCTION public.user_can_delete_product(product_type text, product_created_by text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT 
+    -- For non-membership products, admin or creator can delete
+    (product_type != 'MEMBERSHIP' AND user_is_admin_or_owns_product(product_created_by))
+    OR
+    -- For membership products, only ADMIN can delete
+    (product_type = 'MEMBERSHIP' AND
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.auth_user_id = auth.uid()::text
+        AND profiles.app_role::text = 'ADMIN'
+      )
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.user_can_delete_product TO authenticated, anon;
+
+CREATE POLICY "Users can delete products based on their role and product type"
 ON "products" FOR DELETE
-USING (user_is_admin_or_owns_product(created_by));
+USING (user_can_delete_product(type::text, created_by));
 
 -- Make sure we have the index for performance
 CREATE INDEX IF NOT EXISTS idx_products_created_by ON products(created_by);
