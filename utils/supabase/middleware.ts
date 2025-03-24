@@ -102,8 +102,9 @@ export const updateSession = async (request: NextRequest) => {
          if (
             pathname.startsWith('/admin') || // Admin routes 
             pathname.startsWith('/member') || // Member routes
-            pathname === '/user' || // User dashboard
-            pathname === '/purchases' // Purchase history
+            pathname.startsWith('/user') || // User profile
+            pathname.startsWith('/purchases') || // Purchase history
+            pathname === '/recent-purchases' // Recent purchases
          ) {
             // Redirect unauthenticated users to sign-in page
             // while preserving the original URL as the return path

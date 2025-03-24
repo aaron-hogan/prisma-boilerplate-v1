@@ -222,7 +222,10 @@ ALTER TABLE "profiles" ENABLE ROW LEVEL SECURITY;
 -- Create policies
 CREATE POLICY "Users can read their own profile"
 ON "profiles" FOR SELECT
-USING (auth_user_id = auth.uid()::text);
+USING (
+  auth.uid() IS NOT NULL AND -- Must be authenticated
+  auth_user_id = auth.uid()::text
+);
 
 CREATE POLICY "Users can update their own profile"
 ON "profiles" FOR UPDATE
@@ -293,11 +296,14 @@ ALTER TABLE "purchases" ENABLE ROW LEVEL SECURITY;
 -- Create policies
 CREATE POLICY "Users can view their own purchases"
 ON "purchases" FOR SELECT
-USING (profile_id IN (
-  SELECT profiles.id
-  FROM profiles
-  WHERE profiles.auth_user_id = auth.uid()::text
-));
+USING (
+  auth.uid() IS NOT NULL AND -- Must be authenticated
+  profile_id IN (
+    SELECT profiles.id
+    FROM profiles
+    WHERE profiles.auth_user_id = auth.uid()::text
+  )
+);
 
 CREATE POLICY "Users can access their own purchases via function"
 ON "purchases" FOR SELECT
@@ -343,6 +349,7 @@ GRANT EXECUTE ON FUNCTION public.user_can_purchase_product TO authenticated, ano
 CREATE POLICY "Users can create purchases based on product type and role"
 ON "purchases" FOR INSERT
 WITH CHECK (
+  auth.uid() IS NOT NULL AND -- Must be authenticated
   user_can_purchase_product(profile_id, product_id)
 );
 

@@ -1,57 +1,86 @@
 // app/products/page.tsx
 import prisma from '@/lib/prisma';
 import { createClient } from "@/utils/supabase/server";
-import { purchaseProductAction } from "@/app/actions";
-import { SubmitButton } from "@/components/submit-button";
+import ProductList from "@/components/product-list";
 
-export default async function PublicProductsPage() {
-  // Fetch only ORANGE products for public view
-  const products = await prisma.product.findMany({
-    where: { type: 'ORANGE' },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Check if user is authenticated to show proper action buttons
+export default async function ProductsPage() {
+  // Check if user is authenticated and get their role
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const isAuthenticated = !!user;
+  
+  // Get user's profile to check role
+  let userRole = 'USER'; // Default role
+  
+  if (user) {
+    const profile = await prisma.profile.findUnique({
+      where: { authUserId: user.id }
+    });
+    
+    if (profile) {
+      userRole = profile.appRole;
+    }
+  }
+  
+  // Check if user can see apples (member or higher)
+  const canSeeApples = ['MEMBER', 'STAFF', 'ADMIN'].includes(userRole);
+  
+  // Fetch products based on user role
+  const productsQuery = canSeeApples 
+    ? prisma.product.findMany({ orderBy: { createdAt: 'desc' } }) // All products
+    : prisma.product.findMany({      
+        where: { type: 'ORANGE' },   // Only oranges for non-members
+        orderBy: { createdAt: 'desc' }
+      });
+      
+  const products = await productsQuery;
+  
+  // Filter products by type and serialize for client component (fixing Decimal issue)
+  const serializedProducts = products.map(p => ({
+    id: p.id,
+    name: p.name,
+    type: p.type,
+    price: p.price.toString(), // Convert Decimal to string
+    createdAt: p.createdAt.toISOString(),
+  }));
+  
+  const apples = serializedProducts.filter(p => p.type === 'APPLE');
+  const oranges = serializedProducts.filter(p => p.type === 'ORANGE');
 
   return (
     <div className="w-full p-4">
-      <h1 className="text-2xl font-bold mb-4">Oranges</h1>
-      <p className="mb-6">Browse our selection of oranges - available to everyone</p>
+      <h1 className="text-2xl font-bold mb-4">Products</h1>
       
-      <div className="border rounded-lg shadow-sm p-4">
-        <h2 className="text-xl font-semibold mb-4">Available Products</h2>
-        
-        {products.length === 0 ? (
-          <p>No products available yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {products.map((product) => (
-              <li key={product.id} className="border-b pb-2">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-medium">{product.name}</span>
-                    <div className="text-sm text-gray-500">Type: {product.type}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">${Number(product.price).toFixed(2)}</span>
-                    
-                    {/* Purchase form */}
-                    <form action={purchaseProductAction}>
-                      <input type="hidden" name="productId" value={product.id} />
-                      <SubmitButton className="text-xs">
-                        {isAuthenticated ? "Buy" : "Sign in to buy"}
-                      </SubmitButton>
-                    </form>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {canSeeApples ? (
+        // Member or higher view - show both product types
+        <div className="mb-6">
+          <p className="mb-6">Browse our complete selection of fruits</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h2 className="text-xl font-bold mb-4">Apples</h2>
+              <p className="mb-4">Member exclusive products</p>
+              <ProductList products={apples} isAuthenticated={isAuthenticated} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold mb-4">Oranges</h2>
+              <p className="mb-4">Available to everyone</p>
+              <ProductList products={oranges} isAuthenticated={isAuthenticated} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        // Non-member view - only show oranges
+        <div>
+          <p className="mb-6">Browse our selection of oranges - available to everyone</p>
+          <ProductList products={oranges} isAuthenticated={isAuthenticated} />
+          
+          <div className="mt-8 p-4 border rounded-lg bg-gray-50">
+            <h3 className="text-lg font-semibold mb-2">Member Benefits</h3>
+            <p>Become a member to access our exclusive apple products!</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
