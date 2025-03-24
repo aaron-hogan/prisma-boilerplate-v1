@@ -72,21 +72,21 @@ export default async function ProductsPage({
       )}
       
       {products.length === 0 ? (
-        <div className="border rounded-lg shadow-sm p-12 text-center bg-gray-50">
+        <div className="border border-dashed rounded-lg p-10 text-center">
           <h2 className="text-xl font-semibold mb-2">No Products Available</h2>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            There are currently no products available for purchase. Please check back later as our inventory is updated regularly.
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            There are currently no products available for purchase.
           </p>
           {user ? (
             <p className="text-sm text-muted-foreground">
-              You're signed in as {user.email}
+              Signed in as {user.email}
             </p>
           ) : (
             <div className="flex justify-center gap-4 mt-4">
-              <Button asChild variant="outline">
+              <Button asChild variant="ghost">
                 <a href="/sign-in">Sign In</a>
               </Button>
-              <Button asChild>
+              <Button asChild variant="outline">
                 <a href="/sign-up">Sign Up</a>
               </Button>
             </div>
