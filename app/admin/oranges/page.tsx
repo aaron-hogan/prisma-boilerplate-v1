@@ -1,24 +1,70 @@
-// app/admin/oranges/page.tsx
+/**
+ * Oranges Management Page
+ * 
+ * This client component implements a CRUD interface for orange products.
+ * It demonstrates role-based access control (RBAC) where:
+ * - ADMIN and STAFF roles can view and create oranges
+ * - Both ADMIN and STAFF roles can delete oranges (different from apples)
+ * 
+ * Features:
+ * - Loads and displays all orange products
+ * - Creates new orange products with random prices
+ * - Deletes orange products 
+ * - Displays user profile and role information
+ * 
+ * The page uses Supabase client for data operations with Row Level Security (RLS)
+ * policies enforced on the database side.
+ */
 "use client";
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 
+/**
+ * Interface for product data structure
+ */
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  type: 'APPLE' | 'ORANGE';
+  created_by: string;
+  created_at: string;
+}
+
+/**
+ * Interface for user profile data structure
+ */
+interface UserProfile {
+  id: string;
+  auth_user_id: string;
+  app_role: 'ADMIN' | 'STAFF' | 'MEMBER' | 'USER';
+}
+
 export default function OrangesManagementPage() {
-  const [oranges, setOranges] = useState<any[]>([]);
+  // State management with proper type annotations
+  const [oranges, setOranges] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const supabase = createClient();
 
-  // Get user profile on mount
+  /**
+   * Effect that runs when the component mounts to:
+   * 1. Fetch the user's profile
+   * 2. Load orange products once the profile is available
+   */
   useEffect(() => {
-    async function fetchUserProfile() {
+    // Flag to track if the component is still mounted
+    let isMounted = true;
+    
+    async function initialize() {
       try {
+        // First, fetch the authenticated user
         const { data: { user } } = await supabase.auth.getUser();
         
-        if (user) {
+        if (user && isMounted) {
           // Fetch profile from database
           const { data, error } = await supabase
             .from('profiles')
@@ -26,47 +72,67 @@ export default function OrangesManagementPage() {
             .eq('auth_user_id', user.id)
             .single();
           
-          if (data) {
+          if (data && isMounted) {
             setUserProfile(data);
-            console.log("Profile loaded:", data);
-          } else if (error) {
-            console.error('Error fetching profile:', error);
+            // Once we have the profile, load the oranges automatically
+            loadOranges();
+          } else if (error && isMounted) {
             setMessage(`Profile error: ${error.message}`);
           }
         }
       } catch (err: any) {
-        console.error("Profile fetch error:", err);
-        setMessage(`Error: ${err.message}`);
+        if (isMounted) {
+          setMessage(`Error: ${err.message}`);
+        }
       }
     }
     
-    fetchUserProfile();
+    initialize();
+    
+    // Cleanup function to prevent state updates if the component unmounts
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Load oranges
-  const loadOranges = async () => {
+  /**
+   * Loads orange products from the database
+   * @param preserveMessage - If true, won't update the message unless there's an error
+   */
+  const loadOranges = async (preserveMessage = false) => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, price, created_by, created_at")
+        .select("id, name, price, created_by, created_at, type")
         .eq("type", "ORANGE");
 
       if (error) {
         setMessage(`Error: ${error.message}`);
-        console.error("Load error:", error);
       } else {
-        setOranges(data || []);
-        setMessage(`Loaded ${data?.length || 0} oranges`);
+        // Ensure all items have the type field, even if it wasn't returned
+        const typedData = data?.map(item => ({
+          ...item,
+          type: 'ORANGE' as const
+        })) || [];
+        
+        setOranges(typedData);
+        
+        // Only update the message if we're not preserving the current one
+        if (!preserveMessage) {
+          setMessage(`Loaded ${typedData.length} oranges`);
+        }
       }
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
-      console.error("Load exception:", err);
     }
     setLoading(false);
   };
 
-  // Create orange
+  /**
+   * Creates a new orange product in the database
+   * Uses the user's profile ID for the created_by field
+   */
   const createOrange = async () => {
     if (!userProfile) {
       setMessage("Cannot create orange: user profile not loaded");
@@ -74,46 +140,60 @@ export default function OrangesManagementPage() {
     }
     
     setLoading(true);
+    // Generate a random price between $0.50 and $5.00
     const price = (Math.random() * 4.5 + 0.5).toFixed(2);
     
     try {
-      const { data, error } = await supabase.from("products").insert({
+      // Create product data with proper typing
+      const newProduct = {
         name: `Orange ${new Date().toISOString().substring(0, 19)}`,
-        type: "ORANGE",
+        type: "ORANGE" as const,
         price,
         created_by: userProfile.id,
-      }).select();
+      };
+      
+      const { data, error } = await supabase
+        .from("products")
+        .insert(newProduct)
+        .select();
 
       if (error) {
         setMessage(`Error: ${error.message}`);
-        console.error("Create error:", error);
       } else {
         setMessage("Orange created successfully");
-        loadOranges(); // Reload the list
+        // Pass true to preserve the success message
+        loadOranges(true);
       }
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
-      console.error("Create exception:", err);
     }
     setLoading(false);
   };
 
-  // Delete orange
+  /**
+   * Deletes an orange product from the database by ID
+   * Note: This operation is restricted by RLS policies to ADMIN and STAFF roles
+   * 
+   * @param id - The unique identifier of the orange product to delete
+   */
   const deleteOrange = async (id: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from("products").delete().eq("id", id);
+      // Delete the product with the specified ID
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", id);
 
       if (error) {
         setMessage(`Error: ${error.message}`);
-        console.error("Delete error:", error);
       } else {
         setMessage("Orange deleted successfully");
-        loadOranges(); // Reload the list
+        // Pass true to preserve the success message
+        loadOranges(true);
       }
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
-      console.error("Delete exception:", err);
     }
     setLoading(false);
   };
@@ -124,16 +204,12 @@ export default function OrangesManagementPage() {
       <p className="mb-4">This page is accessible only to users with Admin or Staff roles</p>
       
       <div className="flex flex-col gap-4">
-        <div className="p-2 border rounded bg-muted mb-4">
-          <p>User Profile: {userProfile ? `ID: ${userProfile.id}, Role: ${userProfile.app_role}` : 'Not loaded'}</p>
-        </div>
-        
         <div className="flex gap-4">
-          <Button onClick={loadOranges} disabled={loading}>
-            Load Oranges
-          </Button>
           <Button onClick={createOrange} disabled={loading || !userProfile}>
             Create Orange
+          </Button>
+          <Button onClick={loadOranges} disabled={loading} variant="outline">
+            Refresh
           </Button>
         </div>
 
@@ -145,8 +221,10 @@ export default function OrangesManagementPage() {
 
         <div className="mt-4">
           <h2 className="text-xl font-semibold mb-2">Oranges List</h2>
-          {oranges.length === 0 ? (
-            <p>No oranges found. Try creating one or loading the list.</p>
+          {loading ? (
+            <p>Loading oranges...</p>
+          ) : oranges.length === 0 ? (
+            <p>No oranges found. Try creating one.</p>
           ) : (
             <ul className="space-y-2">
               {oranges.map((orange) => (

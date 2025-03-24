@@ -1,3 +1,5 @@
+import React from "react";
+
 // app/(member)/membership/page.tsx
 export default function MembershipPage() {
    return (
