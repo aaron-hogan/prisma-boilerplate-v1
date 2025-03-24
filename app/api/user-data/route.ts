@@ -7,7 +7,7 @@
  * 3. Returns a consistent user data structure for client components
  */
 
-import { createClient } from '@/utils/supabase/simplified-server';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 

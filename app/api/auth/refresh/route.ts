@@ -5,7 +5,7 @@
  * It's a critical part of ensuring that JWT claims are updated after role changes.
  */
 
-import { createClient } from '@/utils/supabase/simplified-server';
+import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
