@@ -23,6 +23,7 @@ enum AppRole {
 enum ProductType {
   APPLE
   ORANGE
+  MEMBERSHIP
 }
 
 // User profile connected to Supabase auth.users

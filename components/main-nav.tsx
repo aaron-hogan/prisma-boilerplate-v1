@@ -17,8 +17,8 @@ const navItems: NavItem[] = [
   { href: '/products', label: 'Products', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: false }, // Everyone
   { href: '/purchases', label: 'Purchases', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Auth users only
   { href: '/user', label: 'Profile', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Auth users only
-  { href: '/member', label: 'Cats', roles: ['MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Members only area
-  { href: '/admin', label: 'Staff & Admin', roles: ['STAFF', 'ADMIN'], requiresAuth: true }, // Staff and admins only
+  { href: '/member', label: 'Member Area', roles: ['MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Members only area
+  { href: '/admin', label: 'Admin', roles: ['STAFF', 'ADMIN'], requiresAuth: true }, // Staff and admins only
 ];
 
 interface MainNavProps {

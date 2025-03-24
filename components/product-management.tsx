@@ -12,7 +12,7 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  type: 'APPLE' | 'ORANGE';
+  type: 'APPLE' | 'ORANGE' | 'MEMBERSHIP';
   created_by: string;
   created_at: string;
   creator?: {
@@ -37,7 +37,7 @@ interface UserProfile {
 }
 
 interface ProductManagementProps {
-  productType: 'APPLE' | 'ORANGE';
+  productType: 'APPLE' | 'ORANGE' | 'MEMBERSHIP';
   title: string;
 }
 
@@ -176,9 +176,16 @@ export default function ProductManagement({ productType, title }: ProductManagem
     }
     
     setLoading(true);
-    // Generate a random price - different ranges for apples and oranges
-    const maxPrice = productType === 'APPLE' ? 3.00 : 5.00;
-    const price = (Math.random() * (maxPrice - 0.5) + 0.5).toFixed(2);
+    // Generate a random price - different ranges for each product type
+    let price;
+    if (productType === 'MEMBERSHIP') {
+      // Memberships are more expensive
+      price = (Math.random() * (150 - 50) + 50).toFixed(2);
+    } else if (productType === 'APPLE') {
+      price = (Math.random() * (3.00 - 0.5) + 0.5).toFixed(2);
+    } else { // ORANGE
+      price = (Math.random() * (5.00 - 0.5) + 0.5).toFixed(2);
+    }
     
     try {
       // Create product data with proper typing
@@ -226,11 +233,11 @@ export default function ProductManagement({ productType, title }: ProductManagem
         .eq("id", id)
         .maybeSingle();
       
-      // Apply business rule: Staff can't delete apples, even their own
+      // Apply business rule: Staff can't delete apples or memberships, even their own
       if (productData && 
-          productData.type === 'APPLE' && 
+          (productData.type === 'APPLE' || productData.type === 'MEMBERSHIP') && 
           userProfile?.app_role === 'STAFF') {
-        setMessage(`Permission denied: Staff members cannot delete apples`);
+        setMessage(`Permission denied: Staff members cannot delete ${productData.type.toLowerCase()}s`);
         setLoading(false);
         return;
       }
@@ -302,7 +309,7 @@ export default function ProductManagement({ productType, title }: ProductManagem
                     <span className="block text-xs text-gray-500">By: {product.creatorInfo?.displayName || product.creator?.auth_user_id || product.created_by}</span>
                     <span className="block text-xs text-gray-500">{new Date(product.created_at).toLocaleString()}</span>
                   </div>
-                  {/* Only show delete button to ADMINs or the creator (with special rule: staff can't delete apples) */}
+                  {/* Only show delete button to ADMINs or the creator (with special rule: staff can't delete apples or memberships) */}
                   {(
                     userProfile?.app_role === 'ADMIN' || 
                     (userProfile?.app_role === 'STAFF' && product.type === 'ORANGE' && product.created_by === userProfile?.id) ||

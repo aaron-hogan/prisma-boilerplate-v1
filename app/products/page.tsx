@@ -25,15 +25,11 @@ export default async function ProductsPage() {
   // Check if user can see apples (member or higher)
   const canSeeApples = ['MEMBER', 'STAFF', 'ADMIN'].includes(userRole);
   
-  // Fetch products based on user role
-  const productsQuery = canSeeApples 
-    ? prisma.product.findMany({ orderBy: { createdAt: 'desc' } }) // All products
-    : prisma.product.findMany({      
-        where: { type: 'ORANGE' },   // Only oranges for non-members
-        orderBy: { createdAt: 'desc' }
-      });
-      
-  const products = await productsQuery;
+  // Fetch all products
+  // Everyone can see oranges and memberships, but only members and above can see apples
+  const products = await prisma.product.findMany({ 
+    orderBy: { createdAt: 'desc' } 
+  });
   
   // Filter products by type and serialize for client component (fixing Decimal issue)
   const serializedProducts = products.map(p => ({
@@ -44,16 +40,27 @@ export default async function ProductsPage() {
     createdAt: p.createdAt.toISOString(),
   }));
   
+  // Filter by product types
   const apples = serializedProducts.filter(p => p.type === 'APPLE');
   const oranges = serializedProducts.filter(p => p.type === 'ORANGE');
+  const memberships = serializedProducts.filter(p => p.type === 'MEMBERSHIP');
 
   return (
     <div className="w-full p-4">
       <h1 className="text-2xl font-bold mb-4">Products</h1>
       
+      {/* Membership Section - Always Visible */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold mb-4">Memberships</h2>
+        <p className="mb-4">Become a member to access exclusive products and features</p>
+        <ProductList products={memberships} isAuthenticated={isAuthenticated} />
+      </div>
+      
+      {/* Product Sections */}
       {canSeeApples ? (
-        // Member or higher view - show both product types
+        // Member or higher view - show both apple and orange products
         <div className="mb-6">
+          <h2 className="text-2xl font-bold mb-6">Fruit Products</h2>
           <p className="mb-6">Browse our complete selection of fruits</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -72,13 +79,9 @@ export default async function ProductsPage() {
       ) : (
         // Non-member view - only show oranges
         <div>
+          <h2 className="text-2xl font-bold mb-6">Fruit Products</h2>
           <p className="mb-6">Browse our selection of oranges - available to everyone</p>
           <ProductList products={oranges} isAuthenticated={isAuthenticated} />
-          
-          <div className="mt-8 p-4 border rounded-lg bg-gray-50">
-            <h3 className="text-lg font-semibold mb-2">Member Benefits</h3>
-            <p>Become a member to access our exclusive apple products!</p>
-          </div>
         </div>
       )}
     </div>

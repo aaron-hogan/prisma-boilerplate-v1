@@ -6,7 +6,11 @@
       "start": "next start",
       "migrate": "prisma migrate deploy",
       "apply-rls": "ts-node migrations/apply-rls-policies.ts",
-      "deploy": "npm run migrate && npm run apply-rls"
+      "deploy": "npm run migrate && npm run apply-rls",
+      "seed": "prisma db seed"
+   },
+   "prisma": {
+      "seed": "ts-node prisma/seed.ts"
    },
    "dependencies": {
       "@prisma/client": "^6.5.0",

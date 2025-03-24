@@ -165,8 +165,8 @@ LANGUAGE sql
 SECURITY DEFINER
 AS $$$
   SELECT 
-    -- Anyone can see oranges
-    product_type = 'ORANGE'
+    -- Anyone can see oranges and memberships
+    product_type IN ('ORANGE', 'MEMBERSHIP')
     OR 
     -- Only members and higher can see apples
     (product_type = 'APPLE' AND EXISTS (
@@ -338,8 +338,8 @@ AS $$$
       )
     )
     OR
-    -- For oranges, any authenticated user can purchase
-    (SELECT type FROM products WHERE id = product_id_param) = 'ORANGE'
+    -- For memberships and oranges, any authenticated user can purchase
+    (SELECT type FROM products WHERE id = product_id_param) IN ('ORANGE', 'MEMBERSHIP')
   );
 $$;
 

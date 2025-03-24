@@ -327,7 +327,23 @@ export const purchaseProductAction = async (formData: FormData) => {
    // Get authenticated user
    const { data: { user } } = await supabase.auth.getUser();
    
-   // Redirect to sign-in if not authenticated
+   // Get product type to determine if authentication is required
+   const prisma = await import("@/lib/prisma").then(module => module.default);
+   const product = await prisma.product.findUnique({ 
+      where: { id: productId } 
+   });
+   
+   if (!product) {
+      return encodedRedirect("error", "/products", "Product not found");
+   }
+   
+   // For membership products, allow redirect to sign-in/sign-up
+   // This makes it easy for new users to purchase a membership right away
+   if (product.type === 'MEMBERSHIP' && !user) {
+      return redirect(`/sign-up?redirectTo=/products&message=${encodeURIComponent('Please sign up or sign in to purchase a membership')}`);
+   }
+   
+   // For all other products, require authentication
    if (!user) {
       return redirect("/sign-in");
    }
@@ -370,7 +386,49 @@ export const purchaseProductAction = async (formData: FormData) => {
          }
       });
       
-      // Redirect to purchases page
+      // If this is a membership product, update the user's role to MEMBER
+      // and create a membership record if one doesn't exist
+      if (product.type === 'MEMBERSHIP') {
+         // Update profile role to MEMBER
+         await prisma.profile.update({
+            where: { id: profile.id },
+            data: { appRole: 'MEMBER' }
+         });
+         
+         // Create or update membership record
+         const existingMembership = await prisma.membership.findUnique({
+            where: { profileId: profile.id }
+         });
+         
+         if (existingMembership) {
+            // Update existing membership (extend end date by 1 year from now)
+            await prisma.membership.update({
+               where: { id: existingMembership.id },
+               data: { 
+                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+               }
+            });
+         } else {
+            // Create new membership
+            await prisma.membership.create({
+               data: {
+                  profileId: profile.id,
+                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+               }
+            });
+         }
+         
+         // Update JWT claims to reflect new role
+         // This will be picked up on next token refresh
+         await supabase.auth.updateUser({
+            data: { app_role: 'MEMBER' }
+         });
+         
+         // Redirect to member area after successful membership purchase
+         return redirect("/member");
+      }
+      
+      // Redirect to purchases page for non-membership products
       return redirect("/purchases");
    } catch (error) {
       // Log error but still redirect to purchases
