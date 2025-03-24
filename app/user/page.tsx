@@ -9,10 +9,9 @@ export default async function UserDashboardPage({
 }: { 
   searchParams: { [key: string]: string | string[] | undefined } 
 }) {
-  // Access searchParams safely - in Next.js 14 searchParams is a dynamic object
+  // Access searchParams safely in Next.js 15
   // Get success message from URL if present
-  const successMessage = searchParams?.success ? 
-    (typeof searchParams.success === 'string' ? searchParams.success : null) : null;
+  const { success, tab } = searchParams;
   
   // Verify user is authenticated
   const supabase = await createClient();
@@ -96,9 +95,9 @@ export default async function UserDashboardPage({
     }))
   };
   
-  // Get the tab from URL if present - safely access the dynamic searchParams
-  const tabParam = searchParams?.tab ? 
-    (typeof searchParams.tab === 'string' ? searchParams.tab : null) : null;
+  // Convert parameters to the right types for safety
+  const successMessage = typeof success === 'string' ? success : null;
+  const tabParam = typeof tab === 'string' ? tab : null;
   
   return <UserDashboard initialData={userData} successMessage={successMessage} initialTab={tabParam} />;
 }
