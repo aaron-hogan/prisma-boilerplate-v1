@@ -10,8 +10,8 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-8">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Metrognome PMS</h1>
-        <p className="text-lg mb-8">Your one-stop shop for premium fruits and memberships</p>
+        <h1 className="text-4xl font-bold mb-4">App Foundation & Security Demo</h1>
+        <p className="text-lg mb-8">This app is intended for technical demonstration only.</p>
       </div>
       
       <div className="flex flex-col items-center space-y-4">
@@ -19,7 +19,7 @@ export default function Home() {
           <Link href="/products">Browse Products</Link>
         </Button>
         <p className="text-sm text-muted-foreground">
-          Check out our selection of apples, oranges, and membership options!
+          Check out our selection of apples, oranges, and membership options for cat lovers!
         </p>
       </div>
     </div>
