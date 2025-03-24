@@ -304,7 +304,7 @@ export default function UserDashboard({
                                           <Button
                                              variant="outline"
                                              size="sm"
-                                             onClick={async () => {
+                                             onClick={() => {
                                                 const isMembership =
                                                    purchase.product.type ===
                                                    "MEMBERSHIP";
@@ -318,114 +318,7 @@ export default function UserDashboard({
                                                       confirmMessage
                                                    )
                                                 ) {
-                                                   setCancelLoading(
-                                                      purchase.id
-                                                   );
-                                                   try {
-                                                      // For membership purchases, use the membership API endpoint
-                                                      if (isMembership) {
-                                                         const response =
-                                                            await fetch(
-                                                               `/api/memberships/${initialData.profile.id}`,
-                                                               {
-                                                                  method:
-                                                                     "DELETE",
-                                                               }
-                                                            );
-
-                                                         const result =
-                                                            await response.json();
-
-                                                         if (response.ok) {
-                                                            // Mark purchase as cancelled
-                                                            setPurchases(
-                                                               (prev) =>
-                                                                  prev.map(
-                                                                     (p) =>
-                                                                        p.id ===
-                                                                        purchase.id
-                                                                           ? {
-                                                                                ...p,
-                                                                                deletedAt:
-                                                                                   new Date().toISOString(),
-                                                                             }
-                                                                           : p
-                                                                  )
-                                                            );
-
-                                                            // Immediately update the client-side user role
-                                                            setUserRole("USER");
-                                                            
-                                                            // Switch tab if we're on the member tab
-                                                            if (activeTab === "member") {
-                                                               setActiveTab("profile");
-                                                            }
-                                                            
-                                                            // Refresh the JWT token to get updated claims
-                                                            await refreshUserToken();
-                                                            
-                                                            // Force page refresh to update server components
-                                                            router.refresh();
-                                                         } else {
-                                                            console.error(
-                                                               "Failed to cancel membership:",
-                                                               result.error
-                                                            );
-                                                            alert(
-                                                               `Error: ${result.error || "Could not cancel membership"}`
-                                                            );
-                                                         }
-                                                      } else {
-                                                         // For regular purchases, use the purchases API endpoint
-                                                         const response =
-                                                            await fetch(
-                                                               `/api/purchases/${purchase.id}`,
-                                                               {
-                                                                  method:
-                                                                     "DELETE",
-                                                               }
-                                                            );
-
-                                                         const result =
-                                                            await response.json();
-
-                                                         if (response.ok) {
-                                                            // Update the purchases list to mark this purchase as cancelled
-                                                            setPurchases(
-                                                               (prev) =>
-                                                                  prev.map(
-                                                                     (p) =>
-                                                                        p.id ===
-                                                                        purchase.id
-                                                                           ? {
-                                                                                ...p,
-                                                                                deletedAt:
-                                                                                   new Date().toISOString(),
-                                                                             }
-                                                                           : p
-                                                                  )
-                                                            );
-                                                         } else {
-                                                            console.error(
-                                                               "Failed to cancel purchase:",
-                                                               result.error
-                                                            );
-                                                            alert(
-                                                               `Error: ${result.error || "Could not cancel purchase"}`
-                                                            );
-                                                         }
-                                                      }
-                                                   } catch (error) {
-                                                      console.error(
-                                                         "Error cancelling purchase:",
-                                                         error
-                                                      );
-                                                      alert(
-                                                         "An error occurred while trying to cancel the purchase"
-                                                      );
-                                                   } finally {
-                                                      setCancelLoading(null);
-                                                   }
+                                                   cancelMembership(purchase);
                                                 }
                                              }}
                                              disabled={
@@ -521,4 +414,76 @@ export default function UserDashboard({
          </div>
       </div>
    );
+   
+   // Consolidated function to handle purchase cancellation
+   async function cancelMembership(purchase: UserData['purchases'][0]) {
+      setCancelLoading(purchase.id);
+      try {
+         const isMembership = purchase.product.type === "MEMBERSHIP";
+         
+         // For membership purchases, use the membership API endpoint
+         if (isMembership) {
+            const response = await fetch(
+               `/api/memberships/${initialData.profile.id}`,
+               { method: "DELETE" }
+            );
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+               // Mark purchase as cancelled
+               setPurchases((prev) =>
+                  prev.map((p) =>
+                     p.id === purchase.id
+                        ? { ...p, deletedAt: new Date().toISOString() }
+                        : p
+                  )
+               );
+               
+               // Immediately update the client-side user role
+               setUserRole("USER");
+               
+               // Switch tab if we're on the member tab
+               if (activeTab === "member") {
+                  setActiveTab("profile");
+               }
+               
+               // Refresh the JWT token to get updated claims
+               await refreshUserToken();
+               
+               // Force page refresh to update server components
+               router.refresh();
+            } else {
+               console.error("Failed to cancel membership:", result.error);
+               alert(`Error: ${result.error || "Could not cancel membership"}`);
+            }
+         } else {
+            // For regular purchases, use the purchases API endpoint
+            const response = await fetch(`/api/purchases/${purchase.id}`, {
+               method: "DELETE",
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+               // Update the purchases list to mark this purchase as cancelled
+               setPurchases((prev) =>
+                  prev.map((p) =>
+                     p.id === purchase.id
+                        ? { ...p, deletedAt: new Date().toISOString() }
+                        : p
+                  )
+               );
+            } else {
+               console.error("Failed to cancel purchase:", result.error);
+               alert(`Error: ${result.error || "Could not cancel purchase"}`);
+            }
+         }
+      } catch (error) {
+         console.error("Error cancelling purchase:", error);
+         alert("An error occurred while trying to cancel the purchase");
+      } finally {
+         setCancelLoading(null);
+      }
+   }
 }
