@@ -71,40 +71,63 @@ export default async function ProductsPage({
         </div>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map(product => (
-          <div key={product.id} className="border rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold mb-2">{product.name}</h2>
-            <p className="text-gray-600 mb-4">{product.description}</p>
-            
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-lg font-bold">${Number(product.price).toFixed(2)}</span>
-              <span className="text-sm px-2 py-1 bg-gray-100 rounded-full">
-                {product.type}
-              </span>
+      {products.length === 0 ? (
+        <div className="border rounded-lg shadow-sm p-12 text-center bg-gray-50">
+          <h2 className="text-xl font-semibold mb-2">No Products Available</h2>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            There are currently no products available for purchase. Please check back later as our inventory is updated regularly.
+          </p>
+          {user ? (
+            <p className="text-sm text-muted-foreground">
+              You're signed in as {user.email}
+            </p>
+          ) : (
+            <div className="flex justify-center gap-4 mt-4">
+              <Button asChild variant="outline">
+                <a href="/sign-in">Sign In</a>
+              </Button>
+              <Button asChild>
+                <a href="/sign-up">Sign Up</a>
+              </Button>
             </div>
-            
-            {/* Purchase button - with different behavior based on product type and user role */}
-            {(product.type !== 'APPLE' || isMember) ? (
-              <form action={purchaseProductAction}>
-                <input type="hidden" name="productId" value={product.id} />
-                <Button type="submit" className="w-full">
-                  Purchase
-                </Button>
-              </form>
-            ) : (
-              <div>
-                <Button disabled className="w-full mb-2">
-                  Members Only
-                </Button>
-                <p className="text-xs text-center text-gray-500">
-                  This product is only available to members
-                </p>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map(product => (
+            <div key={product.id} className="border rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold mb-2">{product.name}</h2>
+              <p className="text-gray-600 mb-4">{product.description}</p>
+              
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-lg font-bold">${Number(product.price).toFixed(2)}</span>
+                <span className="text-sm px-2 py-1 bg-gray-100 rounded-full">
+                  {product.type}
+                </span>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              
+              {/* Purchase button - with different behavior based on product type and user role */}
+              {(product.type !== 'APPLE' || isMember) ? (
+                <form action={purchaseProductAction}>
+                  <input type="hidden" name="productId" value={product.id} />
+                  <Button type="submit" className="w-full">
+                    Purchase
+                  </Button>
+                </form>
+              ) : (
+                <div>
+                  <Button disabled className="w-full mb-2">
+                    Members Only
+                  </Button>
+                  <p className="text-xs text-center text-gray-500">
+                    This product is only available to members
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
