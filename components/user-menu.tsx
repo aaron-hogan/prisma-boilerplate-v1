@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import ThemeSwitcher from "@/components/theme-switcher";
 import { signOutAction } from "@/app/actions";
 import { useRouter, usePathname } from "next/navigation";
-import { User, LogOut, Shield, ChevronDown } from "lucide-react";
+import { User, LogOut, ChevronDown } from "lucide-react";
 
 interface UserMenuProps {
   userEmail?: string | null;
@@ -23,7 +23,7 @@ interface UserMenuProps {
 export default function UserMenu({ userEmail, userRole, isAuthenticated }: UserMenuProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const isAdminOrStaff = ['ADMIN', 'STAFF'].includes(userRole || '');
+  // Role-specific UI logic can be added here if needed in the future
   
   // If user is not authenticated, show the theme switcher and auth buttons
   if (!isAuthenticated) {
@@ -80,16 +80,6 @@ export default function UserMenu({ userEmail, userRole, isAuthenticated }: UserM
             <User className="h-4 w-4 mr-2" />
             My Account
           </DropdownMenuItem>
-          
-          {isAdminOrStaff && (
-            <DropdownMenuItem 
-              onClick={() => router.push('/admin')}
-              className={pathname.startsWith('/admin') ? 'bg-muted font-medium' : ''}
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Admin Panel
-            </DropdownMenuItem>
-          )}
           
           <DropdownMenuSeparator />
           
