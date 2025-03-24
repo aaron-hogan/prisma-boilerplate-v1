@@ -303,3 +303,72 @@ export const signOutAction = async () => {
    // Redirect to sign-in page
    return redirect("/sign-in");
 };
+
+/**
+ * Server Action: Purchase Product
+ * 
+ * This server action:
+ * 1. Verifies the user is authenticated
+ * 2. Finds their profile and the requested product
+ * 3. Creates a purchase record linking the profile to the product
+ * 4. Redirects to the purchases page
+ * 
+ * Security:
+ * - Server-side authentication check prevents unauthorized purchases
+ * - Database relations ensure data integrity
+ * 
+ * @param formData - Form data containing productId
+ * @returns Redirect to purchases page or sign-in if not authenticated
+ */
+export const purchaseProductAction = async (formData: FormData) => {
+   const productId = formData.get("productId") as string;
+   const supabase = await createClient();
+   
+   // Get authenticated user
+   const { data: { user } } = await supabase.auth.getUser();
+   
+   // Redirect to sign-in if not authenticated
+   if (!user) {
+      return redirect("/sign-in");
+   }
+   
+   try {
+      // Import prisma within the action to keep module imports clean
+      const prisma = (await import("@/lib/prisma")).default;
+      
+      // Get user's profile
+      const profile = await prisma.profile.findUnique({ 
+         where: { authUserId: user.id } 
+      });
+      
+      if (!profile) {
+         throw new Error("User profile not found");
+      }
+      
+      // Get product details
+      const product = await prisma.product.findUnique({ 
+         where: { id: productId } 
+      });
+      
+      if (!product) {
+         throw new Error("Product not found");
+      }
+      
+      // Create the purchase record
+      await prisma.purchase.create({
+         data: {
+            quantity: 1,
+            total: product.price,
+            profileId: profile.id,
+            productId: product.id
+         }
+      });
+      
+      // Redirect to purchases page
+      return redirect("/purchases");
+   } catch (error) {
+      // Basic error handling - in production, we'd want better error messaging
+      console.error("Purchase error:", error);
+      return encodedRedirect("error", "/products", "Failed to complete purchase");
+   }
+};
