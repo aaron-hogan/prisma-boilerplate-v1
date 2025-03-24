@@ -209,7 +209,10 @@ export default function ProductManagement({ productType, title }: ProductManagem
 
   /**
    * Deletes a product from the database by ID
-   * Note: This operation is restricted by RLS policies to the creator of the product or admin
+   * Note: This operation is restricted by RLS policies and additional app logic:
+   * - Only ADMIN can delete any product
+   * - STAFF can only delete their own ORANGE products, but no APPLES
+   * - Other roles can delete their own products
    * 
    * @param id - The unique identifier of the product to delete
    */
@@ -219,30 +222,43 @@ export default function ProductManagement({ productType, title }: ProductManagem
       // First, check if the user can read this product (RLS might prevent it)
       const { data: productData } = await supabase
         .from("products")
-        .select("id, created_by")
+        .select("id, created_by, type")
         .eq("id", id)
         .maybeSingle();
       
-      // Then attempt the delete operation
+      // Apply business rule: Staff can't delete apples, even their own
+      if (productData && 
+          productData.type === 'APPLE' && 
+          userProfile?.app_role === 'STAFF') {
+        setMessage(`Permission denied: Staff members cannot delete apples`);
+        setLoading(false);
+        return;
+      }
+      
+      // Check if user has permission to delete this product
+      if (productData && 
+          productData.created_by !== userProfile?.id && 
+          userProfile?.app_role !== 'ADMIN') {
+        setMessage(`Permission denied: Only admins or the creator can delete this ${productData.type.toLowerCase()}`);
+        setLoading(false);
+        return;
+      }
+      
+      // If all checks pass, proceed with deletion
       const { data, error } = await supabase
         .from("products")
         .delete()
         .eq("id", id);
         
-      // Check for RLS policy violations by comparing before and after
+      // Handle results
       if (error) {
         setMessage(`Error: ${error.message}`);
-      } else if (productData && !userProfile?.id) {
-        setMessage("Error: User profile not loaded");
-      } else if (productData && productData.created_by !== userProfile?.id && userProfile?.app_role !== 'ADMIN') {
-        // Product exists but user didn't create it and is not an admin
-        setMessage(`Permission denied: Only admins or the creator can delete ${productType.toLowerCase()}s`);
       } else if (!productData) {
         // Product doesn't exist or user can't see it
-        setMessage(`${productType} not found or you don't have permission to delete it`);
+        setMessage(`Product not found or you don't have permission to delete it`);
       } else {
-        // Success case (either admin or creator)
-        setMessage(`${productType} deleted successfully`);
+        // Success case
+        setMessage(`${productData.type} deleted successfully`);
         // Pass true to preserve the success message
         loadProducts(true);
       }
@@ -286,8 +302,12 @@ export default function ProductManagement({ productType, title }: ProductManagem
                     <span className="block text-xs text-gray-500">By: {product.creatorInfo?.displayName || product.creator?.auth_user_id || product.created_by}</span>
                     <span className="block text-xs text-gray-500">{new Date(product.created_at).toLocaleString()}</span>
                   </div>
-                  {/* Only show delete button to ADMINs or the creator */}
-                  {(userProfile?.app_role === 'ADMIN' || product.created_by === userProfile?.id) && (
+                  {/* Only show delete button to ADMINs or the creator (with special rule: staff can't delete apples) */}
+                  {(
+                    userProfile?.app_role === 'ADMIN' || 
+                    (userProfile?.app_role === 'STAFF' && product.type === 'ORANGE' && product.created_by === userProfile?.id) ||
+                    (userProfile?.app_role !== 'STAFF' && product.created_by === userProfile?.id)
+                  ) && (
                     <Button 
                       variant="destructive" 
                       size="sm" 
