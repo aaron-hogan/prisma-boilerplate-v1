@@ -226,6 +226,7 @@ export default function ProductManagement({ productType, title }: ProductManagem
    * - Only ADMIN can delete any product
    * - STAFF can only delete their own ORANGE products, but no APPLES
    * - Other roles can delete their own products
+   * - Products with associated purchases cannot be deleted
    * 
    * @param id - The unique identifier of the product to delete
    */
@@ -240,8 +241,8 @@ export default function ProductManagement({ productType, title }: ProductManagem
         .maybeSingle();
       
       // Apply business rules:
-  // 1. Staff can't delete apples or memberships, even their own
-  // 2. Only admins can delete memberships
+      // 1. Staff can't delete apples or memberships, even their own
+      // 2. Only admins can delete memberships
       if (productData) {
         if ((productData.type === 'APPLE' || productData.type === 'MEMBERSHIP') && 
             userProfile?.app_role === 'STAFF') {
@@ -266,6 +267,25 @@ export default function ProductManagement({ productType, title }: ProductManagem
         return;
       }
       
+      // We need to prevent deletion more aggressively, especially for membership products
+      // Use a function that can access purchases safely through RLS
+      const functionResponse = await supabase.rpc('has_product_been_purchased', {
+        product_id_param: id
+      });
+      
+      if (functionResponse.error) {
+        setMessage(`Error checking purchase history: ${functionResponse.error.message}`);
+        setLoading(false);
+        return;
+      }
+      
+      if (functionResponse.data === true) {
+        setMessage(`This product cannot be deleted because it has been purchased by users. 
+          Consider creating a new version instead of deleting existing products.`);
+        setLoading(false);
+        return;
+      }
+      
       // If all checks pass, proceed with deletion
       const { data, error } = await supabase
         .from("products")
@@ -274,7 +294,21 @@ export default function ProductManagement({ productType, title }: ProductManagem
         
       // Handle results
       if (error) {
-        setMessage(`Error: ${error.message}`);
+        // Check for foreign key constraint violation - the most common error
+        if (error.code === '23503' || 
+            error.message.includes('foreign key constraint') || 
+            error.message.includes('violates foreign key constraint')) {
+          setMessage(`This product cannot be deleted because it has been purchased by users. 
+            Consider creating a new version instead of deleting existing products.`);
+        } 
+        // Handle permission errors
+        else if (error.code === '42501' || error.message.includes('permission denied')) {
+          setMessage(`You don't have permission to delete this product. This may be due to purchase history or other restrictions.`);
+        }
+        // Handle other errors
+        else {
+          setMessage(`Error: ${error.message}`);
+        }
       } else if (!productData) {
         // Product doesn't exist or user can't see it
         setMessage(`Product not found or you don't have permission to delete it`);
@@ -285,7 +319,23 @@ export default function ProductManagement({ productType, title }: ProductManagem
         loadProducts(true);
       }
     } catch (err: any) {
-      setMessage(`Error: ${err.message}`);
+      // Check for specific known errors in the exception
+      const errorMsg = err.message || '';
+      
+      // Foreign key constraint violation
+      if (errorMsg.includes('foreign key constraint') || 
+          errorMsg.includes('violates foreign key constraint')) {
+        setMessage(`This product cannot be deleted because it has been purchased by users. 
+          Consider creating a new version instead of deleting existing products.`);
+      }
+      // Permission errors
+      else if (errorMsg.includes('permission denied')) {
+        setMessage(`You don't have permission to delete this product. This may be due to purchase history or other restrictions.`);
+      }
+      // Other errors
+      else {
+        setMessage(`Error: ${errorMsg}`);
+      }
     }
     setLoading(false);
   };

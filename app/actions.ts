@@ -424,15 +424,15 @@ export const purchaseProductAction = async (formData: FormData) => {
             data: { app_role: 'MEMBER' }
          });
          
-         // Redirect to member area after successful membership purchase
-         return redirect("/member");
+         // Redirect to user page with member tab after successful membership purchase
+         return redirect("/user?tab=member");
       }
       
-      // Redirect to purchases page for non-membership products
-      return redirect("/purchases");
+      // Redirect to user page with purchases tab for non-membership products
+      return redirect("/user?tab=purchases");
    } catch (error) {
-      // Log error but still redirect to purchases
+      // Log error but still redirect to user page
       console.error("Purchase error:", error);
-      return redirect("/purchases");
+      return redirect("/user?tab=purchases");
    }
 };

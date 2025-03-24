@@ -4,21 +4,12 @@ import { Button } from "./ui/button";
 import { createClient } from "@/utils/supabase/server";
 
 /**
- * Auth Header Component
+ * Auth Header Component - LEGACY VERSION
  * 
- * This Server Component:
- * 1. Creates a server-side Supabase client
- * 2. Checks if the user is authenticated using getUser()
- * 3. Renders either:
- *    - A greeting and sign-out button for authenticated users
- *    - Sign-in and sign-up buttons for unauthenticated users
+ * This component has been replaced by the UserMenu component.
+ * It is kept for backward compatibility but redirects users to the new component.
  * 
- * Key points:
- * - This is a Server Component, so it can directly access the auth state on the server
- * - Using getUser() to get the current user is safe and secure
- * - The sign-out form uses the signOutAction Server Action
- * 
- * @returns A React component showing auth state and actions
+ * @deprecated Use UserMenu instead
  */
 export default async function AuthButton() {
   // Create a server-side Supabase client

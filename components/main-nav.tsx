@@ -11,14 +11,10 @@ interface NavItem {
   requiresAuth: boolean; // Whether authentication is required
 }
 
-// Navigation data
+// Navigation data - account and admin links moved to user dropdown menu
 const navItems: NavItem[] = [
   { href: '/', label: 'Home', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: false }, // Everyone
   { href: '/products', label: 'Products', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: false }, // Everyone
-  { href: '/purchases', label: 'Purchases', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Auth users only
-  { href: '/user', label: 'Profile', roles: ['USER', 'MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Auth users only
-  { href: '/member', label: 'Member Area', roles: ['MEMBER', 'STAFF', 'ADMIN'], requiresAuth: true }, // Members only area
-  { href: '/admin', label: 'Admin', roles: ['STAFF', 'ADMIN'], requiresAuth: true }, // Staff and admins only
 ];
 
 interface MainNavProps {
@@ -39,16 +35,29 @@ export default function MainNav({ userRole = 'USER', isAuthenticated = false }: 
   );
 
   return (
-    <div className="flex gap-5 items-center font-semibold">
-      {filteredNavItems.map((item) => (
-        <Link 
-          key={item.href} 
-          href={item.href}
-          className={pathname === item.href ? "text-primary" : ""}
-        >
-          {item.label}
-        </Link>
-      ))}
+    <div className="flex gap-5 items-center font-medium">
+      {filteredNavItems.map((item) => {
+        // Check if current path matches the nav item
+        // Also handle nested routes - consider it active if the path starts with the item's href
+        // But don't match root path (/) for other paths
+        const isActive = 
+          pathname === item.href || 
+          (pathname.startsWith(item.href) && item.href !== '/');
+          
+        return (
+          <Link 
+            key={item.href} 
+            href={item.href}
+            className={`py-2 relative transition-colors hover:text-primary/80 ${
+              isActive 
+                ? "text-primary font-bold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary" 
+                : "text-foreground/80"
+            }`}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }

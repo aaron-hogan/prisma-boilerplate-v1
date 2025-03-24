@@ -2,9 +2,18 @@
 import { createClient } from "@/utils/supabase/server";
 import prisma from '@/lib/prisma';
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import UserDashboard from "@/components/user-dashboard";
 
-export default async function UserDashboardPage() {
+export default async function UserDashboardPage({ 
+  searchParams 
+}: { 
+  searchParams: { [key: string]: string | string[] | undefined } 
+}) {
+  // Access searchParams safely - in Next.js 14 searchParams is a dynamic object
+  // Get success message from URL if present
+  const successMessage = searchParams?.success ? 
+    (typeof searchParams.success === 'string' ? searchParams.success : null) : null;
+  
   // Verify user is authenticated
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -13,9 +22,10 @@ export default async function UserDashboardPage() {
     return redirect("/sign-in");
   }
   
-  // Find user's profile
+  // Find user's profile with membership data
   const profile = await prisma.profile.findUnique({
-    where: { authUserId: user.id }
+    where: { authUserId: user.id },
+    include: { membership: true }
   });
   
   if (!profile) {
@@ -27,20 +37,45 @@ export default async function UserDashboardPage() {
     );
   }
   
-  // No purchases needed on profile page
+  // Fetch user's purchases with product details
+  const purchases = await prisma.purchase.findMany({
+    where: { profileId: profile.id },
+    include: { product: true },
+    orderBy: { createdAt: 'desc' }
+  });
   
-  return (
-    <div className="w-full p-4">
-      <h1 className="text-2xl font-bold mb-4">User Profile</h1>
-      <p className="mb-6">Account Information</p>
-      
-      <div className="border rounded-lg shadow-sm p-4">
-        <div className="space-y-2">
-          <p><span className="font-medium">Email:</span> {user.email}</p>
-          <p><span className="font-medium">Role:</span> {profile.appRole}</p>
-          <p><span className="font-medium">Account Created:</span> {new Date(profile.createdAt).toLocaleDateString()}</p>
-        </div>
-      </div>
-    </div>
-  );
+  // Prepare data for the dashboard component
+  const userData = {
+    user: {
+      email: user.email || '',
+      id: user.id
+    },
+    profile: {
+      id: profile.id,
+      appRole: profile.appRole,
+      createdAt: profile.createdAt.toISOString(),
+      membership: profile.membership ? {
+        startDate: profile.membership.startDate.toISOString(),
+        endDate: profile.membership.endDate ? profile.membership.endDate.toISOString() : null
+      } : null
+    },
+    purchases: purchases.map(p => ({
+      id: p.id,
+      total: p.total.toString(),
+      quantity: p.quantity,
+      createdAt: p.createdAt.toISOString(),
+      product: {
+        id: p.product.id,
+        name: p.product.name,
+        type: p.product.type,
+        price: p.product.price.toString()
+      }
+    }))
+  };
+  
+  // Get the tab from URL if present - safely access the dynamic searchParams
+  const tabParam = searchParams?.tab ? 
+    (typeof searchParams.tab === 'string' ? searchParams.tab : null) : null;
+  
+  return <UserDashboard initialData={userData} successMessage={successMessage} initialTab={tabParam} />;
 }
