@@ -8,7 +8,7 @@
 ## Component Cleanup
 - [x] Remove deprecated `header-auth.tsx` component
 - [x] Evaluate navigation components for simplification
-- [ ] Standardize form component patterns
+- [x] Standardize form component patterns
 
 ## Utilities Consolidation
 - [x] Merge active filters from `filters.ts` and `soft-delete.ts`

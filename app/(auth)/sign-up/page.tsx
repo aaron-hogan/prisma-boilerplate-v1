@@ -1,8 +1,8 @@
 import { signUpAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { AuthForm } from "@/components/auth-form";
+import { FormField } from "@/components/form-field";
 import Link from "next/link";
 import { SmtpMessage } from "../smtp-message";
 
@@ -10,6 +10,8 @@ export default async function Signup(props: {
   searchParams: Promise<Message>;
 }) {
   const searchParams = await props.searchParams;
+  
+  // Handle successful sign-up message
   if ("message" in searchParams) {
     return (
       <div className="w-full border rounded-lg shadow-sm p-4">
@@ -18,43 +20,50 @@ export default async function Signup(props: {
     );
   }
 
+  // Create subtitle with sign-in link
+  const subtitle = (
+    <>
+      Already have an account?{" "}
+      <Link className="text-primary font-medium underline" href="/sign-in">
+        Sign in
+      </Link>
+    </>
+  );
+
   return (
     <>
-      <form className="w-full flex flex-col p-4 border rounded-lg shadow-sm">
-        <h1 className="text-2xl font-medium mb-2">Sign up</h1>
-        <p className="text-sm text-muted-foreground mb-6">
-          Already have an account?{" "}
-          <Link className="text-primary font-medium underline" href="/sign-in">
-            Sign in
-          </Link>
-        </p>
-        <div className="flex flex-col gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input name="email" placeholder="you@example.com" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              type="password"
-              name="password"
-              placeholder="Your password"
-              minLength={6}
-              required
-            />
-          </div>
-          <div className="mt-2">
-            <SubmitButton 
-              className="w-full"
-              formAction={signUpAction} 
-              pendingText="Signing up..."
-            >
-              Sign up
-            </SubmitButton>
-          </div>
-          <FormMessage message={searchParams} />
-        </div>
-      </form>
+      <AuthForm
+        title="Sign up"
+        subtitle={subtitle}
+        message={searchParams}
+      >
+        <FormField
+          label="Email"
+          name="email"
+          type="email"
+          placeholder="you@example.com"
+          required
+        />
+        
+        <FormField
+          label="Password"
+          name="password"
+          type="password"
+          placeholder="Your password"
+          minLength={6}
+          required
+        />
+        
+        <SubmitButton 
+          className="w-full"
+          formAction={signUpAction} 
+          pendingText="Signing up..."
+          wrapperClassName="mt-2"
+        >
+          Sign up
+        </SubmitButton>
+      </AuthForm>
+      
       <div className="mt-4">
         <SmtpMessage />
       </div>
