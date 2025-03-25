@@ -163,7 +163,7 @@ export default function ProductManagement({
                         creatorInfo: creatorInfo || undefined
                      };
                   } catch (err) {
-                     console.error(`Error loading creator info:`, err);
+                     // Return product without creator info on error
                      return product;
                   }
                })

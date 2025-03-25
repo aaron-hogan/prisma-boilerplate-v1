@@ -41,7 +41,7 @@ export async function getJwtClaims() {
    try {
       return jwtDecode<JwtPayload>(session.access_token);
    } catch (error) {
-      console.error("Error decoding JWT:", error);
+      // Silent failure with graceful degradation
       return null;
    }
 }

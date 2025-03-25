@@ -80,7 +80,7 @@ export default function UserDashboard({
           setPurchases(data.purchases);
         }
       } catch (error) {
-        console.error("Error refreshing user data:", error);
+        // Silent failure - continue with initialData
       }
     };
 
@@ -91,7 +91,7 @@ export default function UserDashboard({
   async function cancelPurchase(purchase: UserData['purchases'][0]) {
     // This function only works for membership purchases
     if (purchase.product.type !== "MEMBERSHIP") {
-      console.error("Can only cancel membership purchases");
+      // Only allow cancellation of membership purchases
       return;
     }
     
@@ -132,11 +132,11 @@ export default function UserDashboard({
         // Force page refresh to update server components
         router.refresh();
       } else {
-        console.error("Failed to cancel membership:", result.error);
+        // Display error message to user
         alert(`Error: ${result.error || "Could not cancel membership"}`);
       }
     } catch (error) {
-      console.error("Error cancelling membership:", error);
+      // Generic error message for unexpected errors
       alert("An error occurred while trying to cancel your membership");
     } finally {
       setCancelLoading(null);
