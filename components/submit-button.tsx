@@ -7,13 +7,14 @@ import { useFormStatus } from "react-dom";
 type Props = ComponentProps<typeof Button> & {
   pendingText?: string;
   wrapperClassName?: string;
+  showSpinner?: boolean;
 };
 
 /**
  * An enhanced submit button with loading state
  * 
  * Features:
- * - Shows different text when form is submitting
+ * - Shows loading indicator when form is submitting
  * - Disables button during submission
  * - Optional wrapper div for positioning
  */
@@ -21,9 +22,17 @@ export function SubmitButton({
   children,
   pendingText = "Submitting...",
   wrapperClassName,
+  showSpinner = true,
   ...props
 }: Props) {
   const { pending } = useFormStatus();
+  
+  const loadingIndicator = showSpinner ? (
+    <span className="inline-block mr-2">
+      <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full" 
+        aria-hidden="true" />
+    </span>
+  ) : null;
   
   const button = (
     <Button 
@@ -32,7 +41,14 @@ export function SubmitButton({
       disabled={pending}
       {...props}
     >
-      {pending ? pendingText : children}
+      {pending ? (
+        <>
+          {showSpinner && loadingIndicator}
+          <span>{pendingText}</span>
+        </>
+      ) : (
+        children
+      )}
     </Button>
   );
   
