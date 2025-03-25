@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/utils/supabase/server';
+import { AppError, ErrorType, logError, createErrorResponse } from '@/utils/error-handler';
 
 // API handler for soft deleting a product
 export async function DELETE(
@@ -16,10 +17,7 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Not authenticated' },
-        { status: 401 }
-      );
+      throw new AppError(ErrorType.UNAUTHORIZED, 'Not authenticated');
     }
     
     // Find the profile for permission check
@@ -28,10 +26,7 @@ export async function DELETE(
     });
     
     if (!profile) {
-      return NextResponse.json(
-        { success: false, error: 'Profile not found' },
-        { status: 404 }
-      );
+      throw new AppError(ErrorType.NOT_FOUND, 'Profile not found');
     }
     
     // Find the product
@@ -40,18 +35,12 @@ export async function DELETE(
     });
     
     if (!product) {
-      return NextResponse.json(
-        { success: false, error: 'Product not found' },
-        { status: 404 }
-      );
+      throw new AppError(ErrorType.NOT_FOUND, 'Product not found');
     }
     
     // Check if user has permission
     if (product.createdBy !== profile.id && profile.appRole !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Permission denied' },
-        { status: 403 }
-      );
+      throw new AppError(ErrorType.FORBIDDEN, 'Permission denied');
     }
     
     // Check if product has been purchased
@@ -191,11 +180,14 @@ export async function DELETE(
         ? 'Product archived successfully' // Better messaging for purchased products
         : 'Product removed successfully',
     });
-  } catch (error: any) {
-    console.error('Error soft deleting product:', error);
+  } catch (error) {
+    logError(error, 'DELETE /api/products/[id]');
+    
+    const errorResponse = createErrorResponse(error);
+    
     return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
+      { success: false, ...errorResponse },
+      { status: errorResponse.status }
     );
   }
 }

@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
+import AdminRedirect from "../redirect-component";
 
 /**
  * Memberships Management Redirect
  * 
- * Redirects to the user dashboard with the admin tab active.
+ * Uses the shared redirect component for consistent behavior.
  */
 export default function MembershipsManagementPage() {
-  return redirect("/user?tab=admin");
+  return <AdminRedirect />;
 }

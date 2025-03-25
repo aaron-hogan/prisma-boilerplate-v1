@@ -1,5 +1,4 @@
-import { getJwtClaims } from "@/utils/auth";
-import { createClient } from "@/utils/supabase/server";
+import { getAuthData } from "@/utils/auth-data";
 import MainNav from "./main-nav";
 
 /**
@@ -7,16 +6,8 @@ import MainNav from "./main-nav";
  * and passes it to the client-side navigation
  */
 export default async function Navigation() {
-  // Get Supabase client
-  const supabase = await createClient();
-  
-  // Check if user is authenticated
-  const { data: { user } } = await supabase.auth.getUser();
-  const isAuthenticated = !!user;
-  
-  // Get the JWT claims which include the user's role
-  const claims = await getJwtClaims();
-  const userRole = claims?.app_role || 'USER';  // Default to USER if no role found
+  // Get authentication data using shared utility
+  const { isAuthenticated, userRole } = await getAuthData();
   
   return <MainNav userRole={userRole} isAuthenticated={isAuthenticated} />;
 }

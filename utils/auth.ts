@@ -128,10 +128,17 @@ export async function hasPermission(
 
    // Validate and use the role
    const userRole = isValidAppRole(claimedRole) ? claimedRole : "USER";
-
+   
+   // Get allowed roles for this permission
+   const allowedRoles = PERMISSIONS[permission];
+   
+   // Check if user's role is in the allowed roles
+   const hasRolePermission = allowedRoles.includes(userRole as AppRole);
+   
    // Special case for ownership-based permissions
    if (permission.endsWith(":own") && ownerId && resourceOwnerId) {
-      if (ownerId === resourceOwnerId) {
+      // For ownership permissions, user needs both role permission and ownership
+      if (hasRolePermission && ownerId === resourceOwnerId) {
          return { allowed: true };
       }
       return {
@@ -139,59 +146,12 @@ export async function hasPermission(
          reason: "You can only perform this action on resources you own",
       };
    }
-
+   
+   // For non-ownership permissions, just check role
    return {
-      allowed: false,
-      reason: "Insufficient permissions",
+      allowed: hasRolePermission,
+      reason: hasRolePermission ? undefined : "Insufficient permissions",
    };
 }
 
-/**
- * Legacy permission functions for backward compatibility
- * These will eventually be deprecated in favor of the unified hasPermission function
- */
-
-/**
- * Checks if current user can delete apples
- * @returns Boolean - true if user has ADMIN role
- */
-export async function canDeleteApples() {
-   const result = await hasPermission("apples:delete");
-   return result.allowed;
-}
-
-/**
- * Checks if current user can delete oranges
- * @returns Boolean - true if user has ADMIN or STAFF role
- */
-export async function canDeleteOranges() {
-   const result = await hasPermission("oranges:delete");
-   return result.allowed;
-}
-
-/**
- * Checks if current user can create products
- * @returns Boolean - true if user has ADMIN or STAFF role
- */
-export async function canCreateProducts() {
-   const result = await hasPermission("products:create");
-   return result.allowed;
-}
-
-/**
- * Checks if current user can access the member area
- * @returns Boolean - true if user has ADMIN, STAFF, or MEMBER role
- */
-export async function canAccessMemberArea() {
-   const result = await hasPermission("access:member");
-   return result.allowed;
-}
-
-/**
- * Checks if current user can access the admin area
- * @returns Boolean - true if user has ADMIN or STAFF role
- */
-export async function canAccessAdminArea() {
-   const result = await hasPermission("access:admin");
-   return result.allowed;
-}
+// Legacy permission functions removed to favor the unified hasPermission function
