@@ -11,6 +11,9 @@ A clean, minimal product management system built with Next.js 15 and Supabase.
 - **Type Safety**: Comprehensive TypeScript throughout
 - **UI Components**: Minimalist UI components based on shadcn/ui
 - **Loading States**: Built-in loading indicators following Next.js conventions
+- **Toast Notifications**: Clean user feedback with Sonner toast notifications
+- **Error Boundaries**: Graceful error handling with custom error boundaries
+- **Form Feedback**: Improved forms with React's useActionState hook
 - **Prisma Integration**: Type-safe database access with Prisma
 
 ## Getting Started
@@ -47,11 +50,17 @@ DIRECT_URL=postgresql://postgres:password@localhost:5432/your-database
   - `admin/` - Admin-specific pages (redirects to user dashboard)
   - `api/` - API endpoints for data operations
   - `user/` - User dashboard and profile management
+  - `error.tsx` - Global error boundary component
+  - `loading.tsx` - Global loading component
 - `components/` - Reusable React components
   - `ui/` - Basic UI components (buttons, inputs, etc.)
+  - `sign-in-form.tsx` - Client-side sign-in form with toast notifications
+  - `sign-up-form.tsx` - Client-side sign-up form with toast notifications
 - `lib/` - Shared libraries and utilities
+  - `notifications.ts` - Centralized toast notification utility
 - `prisma/` - Prisma schema and migrations
 - `types/` - TypeScript type definitions
+  - `action-responses.ts` - Types for standardized server action responses
 - `utils/` - Utility functions for auth, data access, etc.
 
 ## Authentication Implementation

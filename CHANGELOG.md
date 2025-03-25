@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Message handling system with Sonner toast notifications
+- Error boundary components for graceful error handling
+- useActionState-compatible server actions for form state management
+- Client-side form components with improved feedback
+- Standardized action response types for consistent messaging
+- Centralized notification utility in lib/notifications.ts
+
+### Changed
+- Sign-in and sign-up forms converted to client components with toast notifications
+- Server actions updated to return standardized status information
+- Root layout updated to include Toaster component
+
+### Added (Previous update)
 - Loading indicators throughout the application using Next.js 15 loading.tsx convention
 - Enhanced SubmitButton component with visual loading indicator
 - Skeleton UI for structured content areas during loading
