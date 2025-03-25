@@ -44,11 +44,14 @@
 - [x] Create standardized action response types for consistent status information
 - [x] Create updated signUpWithState action that supports useActionState hook
 - [x] Create signInWithState action for standardized sign-in feedback
-- [ ] Update more server actions to return standardized status information
+- [x] Update more server actions to return standardized status information
+  - [x] Add purchaseProductWithState with useActionState support
+  - [x] Add revokeMembershipWithState with useActionState support
 - [x] Implement useActionState hook in client components for displaying notifications
-- [x] Create SignUpForm and SignInForm components with toast notifications
+  - [x] Update ProductList component to use toast notifications
+  - [x] Create SignUpForm and SignInForm components with toast notifications
 - [x] Add error boundary components for handling unexpected errors
-- [✓] Test notification system with existing forms and actions (in progress)
+- [✓] Test notification system with all updated components (in progress)
 
 ## Future Enhancements to Consider
 - Further standardization of component styling with shadcn/ui

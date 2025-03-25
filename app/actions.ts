@@ -80,7 +80,7 @@ async function revokeMembership(profileId: string, isOwnProfile: boolean) {
 }
 
 /**
- * Server Action: Revoke Membership
+ * Server Action: Revoke Membership (Legacy version with redirect)
  * 
  * This server action:
  * 1. Verifies the user is authenticated
@@ -127,6 +127,85 @@ export const revokeMembershipAction = async (formData: FormData) => {
       return encodedRedirect("success", "/user", result.message);
    } else {
       return encodedRedirect("error", "/user", result.message);
+   }
+};
+
+/**
+ * Server Action: Revoke Membership with State
+ *
+ * This improved version:
+ * 1. Uses useActionState hook-compatible response format
+ * 2. Returns structured success/error information
+ * 3. Can be used with the Sonner toast notification system
+ *
+ * @param prevState - Previous state from useActionState hook
+ * @param formData - Form data containing profileId
+ * @returns FormActionState object with status information
+ */
+export async function revokeMembershipWithState(
+   prevState: FormActionState | undefined,
+   formData: FormData
+): Promise<FormActionState> {
+   const profileId = formData.get("profileId") as string;
+   
+   try {
+      const supabase = await createClient();
+      
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+         return {
+            status: "error",
+            message: "Authentication required",
+            data: { redirectPath: "/sign-in" }
+         };
+      }
+      
+      // Get user's profile
+      const profile = await prisma.profile.findUnique({
+         where: { authUserId: user.id },
+      });
+      
+      if (!profile) {
+         return {
+            status: "error",
+            message: "Profile not found"
+         };
+      }
+      
+      // Check if user is admin or the owner of the profile
+      const isAdmin = profile.appRole === "ADMIN";
+      const isOwner = profile.id === profileId;
+      
+      if (!isAdmin && !isOwner) {
+         return {
+            status: "error",
+            message: "Permission denied"
+         };
+      }
+      
+      // Call the revokeMembership helper function
+      const result = await revokeMembership(profileId, isOwner);
+      
+      if (result.success) {
+         return {
+            status: "success",
+            message: result.message,
+            data: { redirectPath: "/user" }
+         };
+      } else {
+         return {
+            status: "error",
+            message: result.message
+         };
+      }
+   } catch (error) {
+      console.error("Error revoking membership:", error);
+      return {
+         status: "error",
+         message: error instanceof Error ? error.message : "Failed to revoke membership"
+      };
    }
 };
 
@@ -658,7 +737,7 @@ export const getUserRoleAction = async (): Promise<AppRole | null> => {
 };
 
 /**
- * Server Action: Purchase Product
+ * Server Action: Purchase Product (Legacy version with redirect)
  * 
  * This improved server action:
  * 1. Verifies authentication
@@ -790,5 +869,167 @@ export const purchaseProductAction = async (formData: FormData) => {
     
     // Redirect with error message only for actual errors
     return redirect("/products?error=Purchase+failed");
+  }
+};
+
+/**
+ * Server Action: Purchase Product with State
+ *
+ * This improved version:
+ * 1. Uses useActionState hook-compatible response format
+ * 2. Returns structured success/error information
+ * 3. Can be used with the Sonner toast notification system
+ * 4. Includes redirect information as part of the response
+ *
+ * @param prevState - Previous state from useActionState hook
+ * @param formData - Form data from the purchase form
+ * @returns FormActionState object with status information
+ */
+export async function purchaseProductWithState(
+  prevState: FormActionState | undefined,
+  formData: FormData
+): Promise<FormActionState> {
+  const productId = formData.get("productId") as string;
+  let redirectPath = "/products";
+  
+  try {
+    const supabase = await createClient();
+    
+    // Get authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Get product type to determine if authentication is required
+    const product = await prisma.product.findUnique({ 
+      where: { id: productId } 
+    });
+    
+    if (!product) {
+      return {
+        status: "error",
+        message: "Product not found"
+      };
+    }
+    
+    // For membership products, allow redirect to sign-in/sign-up
+    if (product.type === 'MEMBERSHIP' && !user) {
+      return {
+        status: "info",
+        message: "Please sign up to purchase a membership",
+        data: { redirectPath: "/sign-up?redirectTo=/products" }
+      };
+    }
+    
+    // For all other products, require authentication
+    if (!user) {
+      return {
+        status: "info",
+        message: "Please sign in to make a purchase",
+        data: { redirectPath: "/sign-in" }
+      };
+    }
+    
+    // Get user's profile
+    const profile = await prisma.profile.findUnique({ 
+      where: { authUserId: user.id } 
+    });
+    
+    if (!profile) {
+      return {
+        status: "error",
+        message: "Profile not found"
+      };
+    }
+    
+    // Policy check: Only members, staff, and admins can purchase apples
+    if (product.type === 'APPLE' && !['MEMBER', 'STAFF', 'ADMIN'].includes(profile.appRole)) {
+      return {
+        status: "error",
+        message: "Only members can purchase apples"
+      };
+    }
+    
+    // Create the purchase record
+    await prisma.purchase.create({
+      data: {
+        quantity: 1,
+        total: product.price,
+        profileId: profile.id,
+        productId: product.id
+      }
+    });
+    
+    // If this is a membership product, update the user's role
+    if (product.type === 'MEMBERSHIP') {
+      // Update profile role to MEMBER
+      await prisma.profile.update({
+        where: { id: profile.id },
+        data: { appRole: 'MEMBER' }
+      });
+      
+      // Create or update membership record
+      const existingMembership = await prisma.membership.findUnique({
+        where: { profileId: profile.id }
+      });
+      
+      if (existingMembership) {
+        // Update existing membership (extend end date by 1 year from now)
+        await prisma.membership.update({
+          where: { id: existingMembership.id },
+          data: { 
+            endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+          }
+        });
+      } else {
+        // Create new membership
+        await prisma.membership.create({
+          data: {
+            profileId: profile.id,
+            endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+          }
+        });
+      }
+      
+      // Update JWT claims directly
+      await supabase.auth.updateUser({
+        data: { app_role: 'MEMBER' }
+      });
+      
+      // Explicitly refresh the session to get new claims
+      await supabase.auth.refreshSession();
+      
+      // Refresh token via dedicated endpoint for extra reliability
+      try {
+        await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (refreshError) {
+        console.error("Error calling refresh endpoint:", refreshError);
+        // Non-blocking error handling - continue with response
+      }
+      
+      // Set redirect path for membership products
+      redirectPath = "/user?tab=member";
+      
+      return {
+        status: "success",
+        message: "Membership activated successfully",
+        data: { redirectPath }
+      };
+    }
+    
+    // Success response for non-membership products
+    return {
+      status: "success",
+      message: `${product.name} purchased successfully`,
+      data: { redirectPath: "/user?tab=purchases" }
+    };
+  } catch (error) {
+    console.error("Purchase error:", error);
+    
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Purchase failed"
+    };
   }
 };
