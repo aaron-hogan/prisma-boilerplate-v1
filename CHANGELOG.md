@@ -14,10 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Client-side form components with improved feedback
 - Standardized action response types for consistent messaging
 - Centralized notification utility in lib/notifications.ts
+- Product purchase system updated with toast notifications
+- Membership management updated with toast notifications
 
 ### Changed
 - Sign-in and sign-up forms converted to client components with toast notifications
-- Server actions updated to return standardized status information
+- All server actions updated to return standardized status information
+- Legacy actions maintained for backward compatibility
+- ProductList component refactored with toast notifications
 - Root layout updated to include Toaster component
 
 ### Added (Previous update)
