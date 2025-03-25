@@ -2,6 +2,7 @@ import Navigation from "@/components/navigation";
 import UserMenuWrapper from "@/components/user-menu-wrapper";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -58,6 +59,7 @@ export default function RootLayout({
                   </footer>
                </div>
             </ThemeProvider>
+            <Toaster position="top-right" />
          </body>
       </html>
    );

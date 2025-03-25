@@ -26,6 +26,7 @@ import { jwtDecode } from "jwt-decode";
 // Import JwtPayload interface from shared auth types
 import { JwtPayload, AppRole } from "@/utils/auth.types";
 import { getJwtClaims, hasPermission } from "@/utils/auth";
+import { ActionResponse, ActionStatus, FormActionState } from "@/types/action-responses";
 
 /**
  * Helper function to revoke a user's membership
@@ -130,7 +131,7 @@ export const revokeMembershipAction = async (formData: FormData) => {
 };
 
 /**
- * Server Action: Sign Up
+ * Server Action: Sign Up (Legacy version with redirect)
  *
  * This server action:
  * 1. Extracts sign-up data from the form submission
@@ -189,7 +190,73 @@ export const signUpAction = async (formData: FormData) => {
 };
 
 /**
- * Server Action: Sign In
+ * Server Action: Sign Up with State
+ *
+ * This improved version:
+ * 1. Uses useActionState hook-compatible response format
+ * 2. Returns structured success/error information instead of redirecting
+ * 3. Can be used with the Sonner toast notification system
+ *
+ * @param prevState - Previous state from useActionState hook
+ * @param formData - Form data from the sign-up form
+ * @returns FormActionState object with status information
+ */
+export async function signUpWithState(
+   prevState: FormActionState | undefined,
+   formData: FormData
+): Promise<FormActionState> {
+   const email = formData.get("email")?.toString();
+   const password = formData.get("password")?.toString();
+   const supabase = await createClient();
+   const origin = (await headers()).get("origin");
+
+   // Validate required fields
+   if (!email || !password) {
+      return {
+         status: "error",
+         message: "Email and password are required",
+         fieldErrors: {
+            email: !email ? "Email is required" : "",
+            password: !password ? "Password is required" : ""
+         }
+      };
+   }
+
+   try {
+      // Call Supabase Auth API to sign up the user
+      const { error } = await supabase.auth.signUp({
+         email,
+         password,
+         options: {
+            emailRedirectTo: `${origin}/auth/callback`,
+         },
+      });
+
+      // Handle any errors from the sign-up attempt
+      if (error) {
+         console.error(error.code + " " + error.message);
+         return {
+            status: "error",
+            message: error.message
+         };
+      }
+
+      // Return success state
+      return {
+         status: "success",
+         message: "Thanks for signing up! Please check your email for a verification link."
+      };
+   } catch (error) {
+      console.error("Sign up error:", error);
+      return {
+         status: "error",
+         message: error instanceof Error ? error.message : "An unexpected error occurred"
+      };
+   }
+};
+
+/**
+ * Server Action: Sign In (Legacy version with redirect)
  *
  * This server action:
  * 1. Extracts credentials from the form submission
@@ -294,6 +361,130 @@ export const signInAction = async (formData: FormData) => {
 
    // Perform the redirect
    return redirect(redirectPath);
+};
+
+/**
+ * Server Action: Sign In with State
+ *
+ * This improved version:
+ * 1. Uses useActionState hook-compatible response format
+ * 2. Returns structured success/error information instead of redirecting
+ * 3. Can be used with the Sonner toast notification system
+ * 4. Includes redirect information as part of the response
+ *
+ * @param prevState - Previous state from useActionState hook
+ * @param formData - Form data from the sign-in form
+ * @returns FormActionState object with status information
+ */
+export async function signInWithState(
+   prevState: FormActionState | undefined,
+   formData: FormData
+): Promise<FormActionState> {
+   const email = formData.get("email") as string;
+   const password = formData.get("password") as string;
+   
+   // Validate required fields
+   if (!email || !password) {
+      return {
+         status: "error",
+         message: "Email and password are required",
+         fieldErrors: {
+            email: !email ? "Email is required" : "",
+            password: !password ? "Password is required" : ""
+         }
+      };
+   }
+   
+   try {
+      const supabase = await createClient();
+      
+      // Attempt to sign in with email/password
+      const { data, error } = await supabase.auth.signInWithPassword({
+         email,
+         password,
+      });
+      
+      // If there's an error, return error state
+      if (error) {
+         return {
+            status: "error",
+            message: error.message
+         };
+      }
+      
+      // Ensure user profile exists in the database
+      if (data?.user) {
+         try {
+            await ensureUserProfile(data.user);
+            
+            // Check if user has an expired membership and update role if needed
+            const profile = await prisma.profile.findUnique({
+               where: { authUserId: data.user.id },
+               include: { membership: true },
+            });
+            
+            if (profile && profile.appRole === "MEMBER") {
+               if (
+                  !profile.membership ||
+                  (profile.membership.endDate &&
+                     profile.membership.endDate < new Date())
+               ) {
+                  // Update profile role to USER
+                  await prisma.profile.update({
+                     where: { id: profile.id },
+                     data: { appRole: "USER" },
+                  });
+                  
+                  // Update JWT claims
+                  await supabase.auth.updateUser({
+                     data: { app_role: "USER" },
+                  });
+               }
+            }
+         } catch (profileError) {
+            console.error("Error ensuring user profile:", profileError);
+            // Non-fatal error, continue
+         }
+      }
+      
+      // Refresh the session to get updated JWT claims
+      await supabase.auth.refreshSession();
+      
+      // Determine where to redirect based on user role
+      let redirectPath = "/user"; // Default redirect
+      let userRole = "USER";
+      
+      // Get the user's role from the access token
+      if (data?.session?.access_token) {
+         try {
+            const decoded = jwtDecode<JwtPayload>(data.session.access_token);
+            userRole = decoded.app_role || "USER";
+            
+            // Set redirect path based on role
+            if (["ADMIN", "STAFF"].includes(userRole)) {
+               redirectPath = "/admin";
+            } else if (userRole === "MEMBER") {
+               redirectPath = "/user?tab=member";
+            }
+         } catch (jwtError) {
+            console.error("Error decoding JWT:", jwtError);
+            // On error, use default redirect path
+         }
+      }
+      
+      // Return success with redirectPath in the data
+      return {
+         status: "success",
+         message: `Welcome back! Signed in as ${userRole.toLowerCase()}.`,
+         data: { redirectPath }
+      };
+   } catch (error) {
+      console.error("Sign in error:", error);
+      return {
+         status: "error",
+         message: error instanceof Error ? error.message : "An unexpected error occurred"
+      };
+   }
 };
 
 /**
