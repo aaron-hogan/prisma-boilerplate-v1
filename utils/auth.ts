@@ -3,7 +3,7 @@
 
 import { jwtDecode } from "jwt-decode";
 import { createClient } from "@/utils/supabase/server";
-import { JwtPayload, AppRole, PermissionResult } from "@/utils/auth.types";
+import { JwtPayload, AppRole, PermissionResult } from "@/types";
 
 /**
  * Gets JWT claims from the current user session

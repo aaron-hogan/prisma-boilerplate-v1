@@ -6,13 +6,7 @@
  */
 import { getJwtClaims } from "@/utils/auth";
 import { createClient } from "@/utils/supabase/server";
-
-export interface AuthData {
-  isAuthenticated: boolean;
-  userEmail: string | null;
-  userRole: string;
-  userId: string | null;
-}
+import { AuthData, AppRole } from "@/types";
 
 /**
  * Gets authentication data from server context
@@ -39,7 +33,7 @@ export async function getAuthData(): Promise<AuthData> {
   
   // Get the JWT claims which include the user's role
   const claims = await getJwtClaims();
-  const userRole = claims?.app_role || 'USER';  // Default to USER if no role found
+  const userRole = (claims?.app_role as AppRole) || 'USER';  // Default to USER if no role found
   
   return {
     isAuthenticated,
