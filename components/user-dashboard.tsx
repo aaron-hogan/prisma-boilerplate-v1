@@ -128,6 +128,9 @@ export default function UserDashboard({
           setTab("profile");
         }
         
+        // Show success message
+        notify.success("Membership successfully cancelled");
+        
         // Force page refresh to update server components
         router.refresh();
       } else {
@@ -284,11 +287,22 @@ export default function UserDashboard({
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                const confirmMessage = "Are you sure you want to cancel your membership? You will lose access to member benefits immediately.";
-
-                                if (window.confirm(confirmMessage)) {
+                                // Show a confirmation toast with a callback
+                                const confirmCancellation = () => {
+                                  // First show a toast notification
+                                  notify.info("Processing cancellation request...");
+                                  // Then cancel the purchase
                                   cancelPurchase(purchase);
-                                }
+                                };
+                                
+                                // Show a warning toast with a confirm option
+                                notify.warning("Are you sure you want to cancel your membership? You will lose access to member benefits immediately.", {
+                                  duration: 10000, // 10 seconds
+                                  action: {
+                                    label: "Confirm",
+                                    onClick: confirmCancellation
+                                  }
+                                });
                               }}
                               disabled={cancelLoading === purchase.id}
                             >
