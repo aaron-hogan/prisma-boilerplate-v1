@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized notification utility in lib/notifications.ts
 - Product purchase system updated with toast notifications
 - Membership management updated with toast notifications
+- UrlMessageHandler component for URL parameter to toast conversion
+- Complete replacement of UI-embedded messages with toast notifications
 
 ### Changed
 - Sign-in and sign-up forms converted to client components with toast notifications

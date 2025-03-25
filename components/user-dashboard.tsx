@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import ProductManagement from "@/components/product-management";
+import { notify } from "@/lib/notifications";
 
 interface UserData {
   user: {
@@ -45,13 +46,11 @@ interface UserData {
 
 interface UserDashboardProps {
   initialData: UserData;
-  successMessage?: string | null;
   activeTab?: string | null;
 }
 
 export default function UserDashboard({
   initialData,
-  successMessage,
   activeTab = "profile",
 }: UserDashboardProps) {
   const router = useRouter();
@@ -132,12 +131,12 @@ export default function UserDashboard({
         // Force page refresh to update server components
         router.refresh();
       } else {
-        // Display error message to user
-        alert(`Error: ${result.error || "Could not cancel membership"}`);
+        // Display error message to user using toast notification
+        notify.error(result.error || "Could not cancel membership");
       }
     } catch (error) {
       // Generic error message for unexpected errors
-      alert("An error occurred while trying to cancel your membership");
+      notify.error("An error occurred while trying to cancel your membership");
     } finally {
       setCancelLoading(null);
     }
@@ -145,12 +144,6 @@ export default function UserDashboard({
 
   return (
     <div className="w-full p-4">
-      {successMessage && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-3 mb-6">
-          {successMessage}
-        </div>
-      )}
-
       {/* Main content area with side navigation */}
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left side navigation */}

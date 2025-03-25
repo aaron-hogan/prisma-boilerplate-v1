@@ -11,6 +11,7 @@ import prisma from '@/lib/prisma';
 import { createClient } from '@/utils/supabase/server';
 import { Button } from '@/components/ui/button';
 import { purchaseProductAction } from '@/app/actions';
+import { UrlMessageHandler } from '@/components/url-message-handler';
 
 export default async function ProductsPage({
   searchParams
@@ -55,21 +56,10 @@ export default async function ProductsPage({
   
   return (
     <div className="container mx-auto py-8">
+      {/* Convert URL parameters to toast notifications */}
+      <UrlMessageHandler />
+      
       <h1 className="text-3xl font-bold mb-8">Products</h1>
-      
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4 mb-6">
-          {error}
-        </div>
-      )}
-      
-      {/* Success message */}
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-md p-4 mb-6">
-          {success}
-        </div>
-      )}
       
       {products.length === 0 ? (
         <div className="border border-dashed rounded-lg p-10 text-center">

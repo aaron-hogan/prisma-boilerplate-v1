@@ -11,6 +11,7 @@ import { createClient } from "@/utils/supabase/server";
 import prisma from '@/lib/prisma';
 import { redirect } from "next/navigation";
 import UserDashboard from "@/components/user-dashboard";
+import { UrlMessageHandler } from "@/components/url-message-handler";
 
 export default async function UserDashboardPage({ 
   searchParams 
@@ -20,13 +21,8 @@ export default async function UserDashboardPage({
   // Await the searchParams promise in Next.js 15
   const params = await searchParams;
   
-  // Get URL parameters
-  const success = params.success as string | undefined;
+  // Get active tab from URL parameters
   const tab = params.tab as string | undefined;
-  const error = params.error as string | undefined;
-  
-  // Format success message (prioritize error message if present)
-  const successMessage = error ? error : success ?? null;
   
   // Verify user is authenticated
   const supabase = await createClient();
@@ -134,9 +130,15 @@ export default async function UserDashboardPage({
     activeTab = "profile";
   }
   
-  return <UserDashboard 
-    initialData={userData} 
-    successMessage={successMessage}
-    activeTab={activeTab}
-  />;
+  return (
+    <>
+      {/* Convert URL parameters to toast notifications */}
+      <UrlMessageHandler />
+      
+      <UserDashboard 
+        initialData={userData} 
+        activeTab={activeTab}
+      />
+    </>
+  );
 }
