@@ -163,7 +163,7 @@ export default function ProductManagement({
                         creatorInfo: creatorInfo || undefined
                      };
                   } catch (err) {
-                     console.error(`Error loading creator info:`, err);
+                     // Return product without creator info on error
                      return product;
                   }
                })
@@ -332,9 +332,10 @@ export default function ProductManagement({
 
             <div className="mt-2">
                {loading ? (
-                  <p className="text-sm">
-                     Loading {productType.toLowerCase()}s...
-                  </p>
+                  <div className="flex items-center space-x-2 text-sm">
+                     <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                     <span>Loading {productType.toLowerCase()}s...</span>
+                  </div>
                ) : products.length === 0 ? (
                   <p className="text-sm">
                      No {productType.toLowerCase()}s found. Try creating one.
@@ -372,7 +373,12 @@ export default function ProductManagement({
                                  onClick={() => deleteProduct(product.id)}
                                  disabled={loading}
                               >
-                                 {loading ? "Processing..." : "Archive"}
+                                 {loading ? (
+                                    <>
+                                      <span className="animate-spin inline-block h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
+                                      Processing...
+                                    </>
+                                 ) : "Archive"}
                               </Button>
                            )}
                         </li>

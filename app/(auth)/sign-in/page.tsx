@@ -15,8 +15,10 @@
  * - On failure: displays error message
  */
 import { signInAction } from "@/app/actions";
-import { FormMessage, Message } from "@/components/form-message";
+import { Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
+import { AuthForm } from "@/components/auth-form";
+import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
@@ -31,62 +33,58 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
   // Await the search params which may contain error messages
   const searchParams = await props.searchParams;
   
+  // Create subtitle with sign-up link
+  const subtitle = (
+    <>
+      Don't have an account?{" "}
+      <Link className="text-primary font-medium underline" href="/sign-up">
+        Sign up
+      </Link>
+    </>
+  );
+  
+  // Create custom label with forgot password link
+  const passwordLabel = (
+    <div className="flex justify-between items-center">
+      <Label htmlFor="password">Password</Label>
+      <Link className="text-xs text-primary underline" href="/forgot-password">
+        Forgot Password?
+      </Link>
+    </div>
+  );
+  
   return (
-    <form className="w-full flex flex-col p-4 border rounded-lg shadow-sm">
-      <h1 className="text-2xl font-medium mb-2">Sign in</h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Don't have an account?{" "}
-        <Link className="text-primary font-medium underline" href="/sign-up">
-          Sign up
-        </Link>
-      </p>
-      <div className="flex flex-col gap-4">
-        {/* Email field with validation */}
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input 
-            name="email" 
-            placeholder="you@example.com" 
-            required 
-            type="email"
-            autoComplete="email"
-          />
-        </div>
-        
-        {/* Password field with forgot password link */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <Label htmlFor="password">Password</Label>
-            <Link
-              className="text-xs text-primary underline"
-              href="/forgot-password"
-            >
-              Forgot Password?
-            </Link>
-          </div>
-          <Input
-            type="password"
-            name="password"
-            placeholder="Your password"
-            required
-            autoComplete="current-password"
-          />
-        </div>
-        
-        <div className="mt-2">
-          {/* Submit button that invokes the signInAction server action */}
-          <SubmitButton 
-            className="w-full" 
-            pendingText="Signing In..." 
-            formAction={signInAction}
-          >
-            Sign in
-          </SubmitButton>
-        </div>
-        
-        {/* Display error message if authentication fails */}
-        <FormMessage message={searchParams} />
-      </div>
-    </form>
+    <AuthForm
+      title="Sign in"
+      subtitle={subtitle}
+      message={searchParams}
+    >
+      <FormField
+        label="Email"
+        name="email"
+        type="email"
+        placeholder="you@example.com"
+        required
+        autoComplete="email"
+      />
+      
+      <FormField
+        label={passwordLabel}
+        name="password"
+        type="password"
+        placeholder="Your password"
+        required
+        autoComplete="current-password"
+      />
+      
+      <SubmitButton 
+        className="w-full" 
+        pendingText="Signing In..." 
+        formAction={signInAction}
+        wrapperClassName="mt-2"
+      >
+        Sign in
+      </SubmitButton>
+    </AuthForm>
   );
 }

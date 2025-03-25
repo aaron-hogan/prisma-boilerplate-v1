@@ -1,7 +1,6 @@
-export type Message =
-  | { success: string }
-  | { error: string }
-  | { message: string };
+import { Message } from "@/types";
+
+export { type Message };
 
 export function FormMessage({ message }: { message: Message }) {
   return (
